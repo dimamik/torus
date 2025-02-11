@@ -1,3 +1,3 @@
-# Changelog for Torus v0.1.0
+# Changelog for Torus v0.2.0
 
-This is the first version - no changes here!
+Torus now supports full text search, ilike, and similarity search.

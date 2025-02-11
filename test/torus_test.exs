@@ -1,4 +1,4 @@
 defmodule TorusTest do
-  use ExUnit.Case
+  use Torus.Case, async: true
   doctest Torus, import: true
 end
