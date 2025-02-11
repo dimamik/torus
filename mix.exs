@@ -9,14 +9,24 @@ defmodule Torus.MixProject do
       app: :torus,
       version: @version,
       elixir: "~> 1.14",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
+      preferred_cli_env: [
+        "ecto.migrate": :test,
+        "ecto.reset": :test,
+        "ecto.rollback": :test,
+        "ecto.gen": :test,
+        "test.ci": :test,
+        "test.reset": :test,
+        "test.setup": :test
+      ],
 
       # Hex
       package: package(),
       description: """
-      A collection of utility functions for nested data manipulation in Elixir
+      Torus bridges Ecto and PostgreSQL, simplifying building search queries.
       """,
 
       # Docs
@@ -41,8 +51,14 @@ defmodule Torus.MixProject do
     ]
   end
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   defp deps do
     [
+      {:ecto, "~> 3.10"},
+      {:ecto_sql, ">= 0.0.0", only: :test},
+      {:postgrex, ">= 0.0.0", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
@@ -68,6 +84,8 @@ defmodule Torus.MixProject do
         "cmd git push --tags",
         "hex.publish --yes"
       ],
+      "test.reset": ["ecto.drop --quiet", "test.setup"],
+      "test.setup": ["ecto.create --quiet", "ecto.migrate --quiet"],
       "test.ci": [
         "format --check-formatted",
         "deps.unlock --check-unused",

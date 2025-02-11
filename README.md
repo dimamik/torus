@@ -1,6 +1,6 @@
 # Torus
 
-A collection of utility functions for nested data manipulation in Elixir
+Torus bridges Ecto and PostgreSQL, simplifying building search queries.
 
 ## Installation
 
