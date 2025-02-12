@@ -12,6 +12,10 @@ env:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.ref }}  # Groups workflows by branch
+  cancel-in-progress: true  # Cancels previous runs when a new one starts
+
 jobs:
   test:
     # Set up a Postgres DB service. By default, Phoenix applications
