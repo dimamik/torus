@@ -1,0 +1,109 @@
+name: Elixir CI
+
+on:
+  push:
+    branches: 
+      - "**"
+  pull_request:
+    branches: 
+      - "**"
+
+# Sets the ENV `MIX_ENV` to `test` for running tests
+env:
+  MIX_ENV: test
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Set up a Postgres DB service. By default, Phoenix applications
+    # use Postgres. This creates a database for running tests.
+    # Additional services can be defined here if required.
+    services:
+      db:
+        image: postgres:15
+        ports:
+          - 5432/tcp
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: torus_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    runs-on: ubuntu-latest
+    name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ['27.2']  
+        elixir: ['1.18.0']
+    steps:
+    # Step: Setup Elixir + Erlang image as the base.
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{matrix.otp}}
+        elixir-version: ${{matrix.elixir}}
+
+    # Step: Check out the code.
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step: Define how to cache deps. Restores existing cache if present.
+    - name: Cache deps
+      id: cache-deps
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-elixir-deps
+      with:
+        path: deps
+        key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-mix-${{ env.cache-name }}-
+
+    # Step: Define how to cache the `_build` directory. After the first run,
+    # this speeds up tests runs a lot. This includes not re-compiling our
+    # project's downloaded deps every run.
+    - name: Cache compiled build
+      id: cache-build
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-compiled-build
+      with:
+        path: _build
+        key: ${{ runner.os }}-mix-${{ env.cache-name }}-${{ hashFiles('**/mix.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-mix-${{ env.cache-name }}-
+          ${{ runner.os }}-mix-
+
+    # Step: Download project dependencies. If unchanged, uses
+    # the cached version.
+    - name: Install dependencies
+      run: mix deps.get
+
+    # Step: Compile the project treating any warnings as errors.
+    # Customize this step if a different behavior is desired.
+    - name: Compiles without warnings
+      run: mix compile --warnings-as-errors
+
+    # Step: Check that the checked in code has already been formatted.
+    # This step fails if something was found unformatted.
+    # Customize this step as desired.
+    - name: Check Formatting
+      run: mix format --check-formatted
+
+    # Step: Run the migrations to setup test database.
+    - name: Run mix ecto.migrate
+      env:
+        POSTGRES_URL: postgresql://postgres:postgres@localhost:${{job.services.db.ports[5432]}}/torus_test
+      run: mix test.setup
+
+    # Step: Execute the tests.
+    - name: Run tests
+      env:
+        POSTGRES_URL: postgresql://postgres:postgres@localhost:${{job.services.db.ports[5432]}}/torus_test
+      run: mix test
