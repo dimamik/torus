@@ -30,7 +30,7 @@ See `full_text_dynamic/5` for more details.
 
 1.  **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance.
 
-    See `similarity/5` for more details.
+    See `ilike/5`,`like/5`, `similar_to/5`, and `similarity/5` for more details.
 
 2.  **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling
     efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html)
@@ -51,6 +51,14 @@ See `full_text_dynamic/5` for more details.
 For now, Torus supports similarity and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
 
 <!-- MDOC -->
+
+## Future plans
+
+- [ ] Implement more search types and functions from PostgreSQL docs, provide examples and docs for them
+- [ ] Make `full_text_dynamic/5` more extensible by splitting it to building blocks and defining more arguments. Leave the default (without args) version fit for most cases.
+- [ ] Add `full_text_stored/5` for full-text search on stored vector columns
+- [ ] Add support for highlighting search results. (Base off of a `ts_headline` function)
+- [ ] Create a clean API for semantic search, make it easy to abstract embedding creation and storage
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can

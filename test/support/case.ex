@@ -22,16 +22,20 @@ defmodule Torus.Case do
       alias TorusTest.Author
       alias TorusTest.Post
 
-      def insert_post!(title: title, body: body) do
-        Repo.insert!(%Post{title: title, body: body})
+      def insert_post!(args) do
+        insert!(Post, args)
       end
 
-      def insert_post!(title: title, body: body, author: author) do
-        Repo.insert!(%Post{title: title, body: body, author: author})
+      def insert_author!(args) do
+        insert!(Author, args)
       end
 
-      def insert_author!(name: name) do
-        Repo.insert!(%Author{name: name})
+      defp insert!(schema, args) do
+        args
+        |> Keyword.to_list()
+        |> :maps.from_list()
+        |> then(&struct(schema, &1))
+        |> Repo.insert!()
       end
     end
   end
