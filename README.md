@@ -1,5 +1,10 @@
 # Torus
 
+[![CI](https://github.com/dimamik/torus/actions/workflows/ci.yml/badge.svg)](https://github.com/dimamik/torus/actions/workflows/ci.yml)
+[![License](https://img.shields.io/hexpm/l/torus.svg)](https://github.com/dimamik/torus/blob/main/LICENSE)
+[![Version](https://img.shields.io/hexpm/v/torus.svg)](https://hex.pm/packages/torus)
+[![Hex Docs](https://img.shields.io/badge/documentation-gray.svg)](https://hexdocs.pm/torus)
+
 <!-- MDOC -->
 
 Torus is a plug-and-play library that seamlessly integrates PostgreSQL's search into Ecto, streamlining the construction of advanced search queries.
@@ -30,13 +35,14 @@ See `full_text_dynamic/5` for more details.
 
 1.  **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance.
 
-    See `ilike/5`,`like/5`, `similar_to/5`, and `similarity/5` for more details.
+    See `similarity/5`, `ilike/5`,`like/5`, and `similar_to/5` for more details.
 
 2.  **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling
     efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html)
 
     ```sql
     SELECT to_tsvector('english', 'The quick brown fox jumps over the lazy dog') @@ to_tsquery('fox & dog');
+    -- true
     ```
 
     See `full_text_dynamic/5` for more details.
