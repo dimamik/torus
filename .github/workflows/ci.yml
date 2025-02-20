@@ -84,7 +84,9 @@ jobs:
     # Step: Download project dependencies. If unchanged, uses
     # the cached version.
     - name: Install dependencies
-      run: mix deps.get
+      run: mix deps.get --check-locked
+
+    # TODO These steps can be moved to `mix.exs`
 
     # Step: Compile the project treating any warnings as errors.
     # Customize this step if a different behavior is desired.
@@ -96,6 +98,13 @@ jobs:
     # Customize this step as desired.
     - name: Check Formatting
       run: mix format --check-formatted
+
+    # Step: Check if credo finds any issues.
+    - name: Run Credo
+      run: mix credo
+
+    - name: Check for unused dependencies
+      run: mix deps.unlock --check-unused
 
     # Step: Run the migrations to setup test database.
     - name: Run mix ecto.migrate

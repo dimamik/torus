@@ -131,10 +131,9 @@ defmodule Torus do
     weights_prepared =
       qualifiers
       |> Enum.with_index()
-      |> Enum.map(fn {_qualifier, index} ->
+      |> Enum.map_join(" || ", fn {_qualifier, index} ->
         "setweight(to_tsvector(#{language}, COALESCE(?, '')), '#{<<index + 65::utf8>>}')"
       end)
-      |> Enum.join(" || ")
 
     fragment_string = """
     ts_rank(#{weights_prepared}, websearch_to_tsquery(#{language}, ?)) DESC

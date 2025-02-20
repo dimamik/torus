@@ -56,7 +56,8 @@ defmodule Torus.MixProject do
 
   defp deps do
     [
-      {:ecto, "~> 3.10"},
+      {:ecto, "~> 3.0"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, ">= 0.0.0", only: [:test, :dev], runtime: false},
       {:postgrex, ">= 0.0.0", only: :test},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}

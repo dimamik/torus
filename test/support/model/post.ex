@@ -1,4 +1,5 @@
 defmodule TorusTest.Post do
+  @moduledoc false
   use Ecto.Schema
 
   schema "posts" do

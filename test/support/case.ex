@@ -1,4 +1,5 @@
 defmodule Torus.Case do
+  @moduledoc false
   use ExUnit.CaseTemplate
 
   alias Ecto.Adapters.SQL.Sandbox
