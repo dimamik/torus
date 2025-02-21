@@ -22,23 +22,28 @@ defmodule Torus do
 
   ## Examples
 
-  ```elixir
-  iex> insert_post!(title: "hogwarts")
-  ...> insert_post!(body: "HOGWARTS")
-  ...> Post
-  ...> |> Torus.ilike([p], [p.title, p.body], "%OGWART%")
-  ...> |> select([p], %{title: p.title, body: p.body})
-  ...> |> order_by(:id)
-  ...> |> Repo.all()
-  [%{title: "hogwarts", body: nil}, %{title: nil, body: "HOGWARTS"}]
+      iex> insert_posts!(["Wand", "Magic wand", "Owl"])
+      ...> Post
+      ...> |> Torus.ilike([p], [p.title], "wan%")
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Wand"]
 
-  iex> insert_post!(title: "MaGiC")
-  ...> Post
-  ...> |> Torus.ilike([p], p.title, "magi%")
-  ...> |> select([p], p.title)
-  ...> |> Repo.all()
-  ["MaGiC"]
-  ```
+      iex> insert_post!(title: "hogwarts")
+      ...> insert_post!(body: "HOGWARTS")
+      ...> Post
+      ...> |> Torus.ilike([p], [p.title, p.body], "%OGWART%")
+      ...> |> select([p], %{title: p.title, body: p.body})
+      ...> |> order_by(:id)
+      ...> |> Repo.all()
+      [%{title: "hogwarts", body: nil}, %{title: nil, body: "HOGWARTS"}]
+
+      iex> insert_post!(title: "MaGiC")
+      ...> Post
+      ...> |> Torus.ilike([p], p.title, "magi%")
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["MaGiC"]
 
   ## Optimizations
 
@@ -70,15 +75,13 @@ defmodule Torus do
 
   ## Examples
 
-  ```elixir
-  iex> insert_post!(title: "hogwarts")
-  ...> insert_post!(body: "HOGWARTS")
-  ...> Post
-  ...> |> Torus.like([p], [p.title, p.body], "%OGWART%")
-  ...> |> select([p], p.body)
-  ...> |> Repo.all()
-  ["HOGWARTS"]
-  ```
+      iex> insert_post!(title: "hogwarts")
+      ...> insert_post!(body: "HOGWARTS")
+      ...> Post
+      ...> |> Torus.like([p], [p.title, p.body], "%OGWART%")
+      ...> |> select([p], p.body)
+      ...> |> Repo.all()
+      ["HOGWARTS"]
 
   ## Optimizations
 
@@ -139,14 +142,19 @@ defmodule Torus do
 
   ## Examples
 
-  ```elixir
-  iex> insert_post!(body: "abc")
-  ...> Post
-  ...> |> Torus.similar_to([p], [p.title, p.body], "%(b|d)%")
-  ...> |> select([p], p.body)
-  ...> |> Repo.all()
-  ["abc"]
-  ```
+      iex> insert_post!(body: "abc")
+      ...> Post
+      ...> |> Torus.similar_to([p], [p.title, p.body], "%(b|d)%")
+      ...> |> select([p], p.body)
+      ...> |> Repo.all()
+      ["abc"]
+
+      iex> insert_posts!(["Magic wand", "Wand", "Owl"])
+      ...> Post
+      ...> |> Torus.similarity([p], [p.title], "want", limit: 2)
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Wand", "Magic wand"]
 
   ## Optimizations
   - If regex is needed, use POSIX regex with `~` or `~*` operators since they _may_
@@ -204,16 +212,22 @@ defmodule Torus do
 
   ## Examples
 
-  ```elixir
-  iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
-  ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
-  ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
-  ...>  Post
-  ...> |> Torus.similarity([p], [p.title, p.body], "boshel", limit: 1)
-  ...> |> select([p], p.title)
-  ...> |> Repo.all()
-  ["Diagon Bombshell"]
-  ```
+      iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+      ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+      ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
+      ...>  Post
+      ...> |> Torus.similarity([p], [p.title, p.body], "boshel", limit: 1)
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Diagon Bombshell"]
+
+      iex> insert_posts!(["Wand", "Owl", "What an amazing cloak"])
+      ...> Post
+      ...> |> Torus.full_text_dynamic([p], [p.title], "what a cloak")
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["What an amazing cloak"]
+
 
   ## Optimizations
 
@@ -224,11 +238,6 @@ defmodule Torus do
   - When `order: true` (default) and the limit is not set, the query will do a full
   table scan, so it's recommended to set as low `limit` as possible.
 
-  ## Already implemented optimizations
-
-  - Instead of scanning all rows and computing similarity for each, we first filter
-  with `%` (which potentially uses GIN index). Next we compute (potentially expensive)
-  the ranks using `similarity` function and order the results.
 
   ### Adding an index
 
@@ -237,6 +246,12 @@ defmodule Torus do
 
   CREATE INDEX index_posts_on_title ON posts USING GIN (title gin_trgm_ops);
   ```
+
+  ## Already implemented optimizations
+
+  - Instead of scanning all rows and computing similarity for each, we first filter
+  with `%` (which could use a GIN index), and next we compute (potentially expensive)
+  the ranks using `similarity` function and order the results.
   """
   defmacro similarity(query, bindings, qualifiers, term, args \\ []) do
     qualifiers = List.wrap(qualifiers)

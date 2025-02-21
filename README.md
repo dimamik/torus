@@ -31,30 +31,62 @@ Post
 
 See `full_text_dynamic/5` for more details.
 
-## 5 types of searches:
+## 6 types of search:
 
-1.  **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance.
+1. **Pattern matching**: Searches for a specific pattern in a string.
 
-    See `similarity/5`, `ilike/5`,`like/5`, and `similar_to/5` for more details.
+   ```elixir
+   iex> insert_posts!(["Wand", "Magic wand", "Owl"])
+   ...> Post
+   ...> |> Torus.ilike([p], [p.title], "wan%")
+   ...> |> select([p], p.title)
+   ...> |> Repo.all()
+   ["Wand"]
+   ```
 
-2.  **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling
-    efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html)
+   See `like/5`, `ilike/5`, and `similar_to/5` for more details.
 
-    ```sql
-    SELECT to_tsvector('english', 'The quick brown fox jumps over the lazy dog') @@ to_tsquery('fox & dog');
-    -- true
-    ```
+1. **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance.
 
-    See `full_text_dynamic/5` for more details.
+   ```elixir
+   iex> insert_posts!(["Magic wand", "Wand", "Owl"])
+   ...> Post
+   ...> |> Torus.similarity([p], [p.title], "wantt", limit: 2)
+   ...> |> select([p], p.title)
+   ...> |> Repo.all()
+   ["Wand", "Magic wand"]
+   ```
 
-3.  **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content, often utilizing natural language processing.
-    [Semantic Search with PostgreSQL and OpenAI Embeddings | by Dima Timofeev | Towards Data Science](https://towardsdatascience.com/semantic-search-with-postgresql-and-openai-embeddings-4d327236f41f)
-4.  **Hybrid Search**: Combines multiple search techniques (e.g., keyword and semantic) to leverage their strengths for more accurate results.
-5.  **3rd Party Engines/Providers**: Utilizes external services or software specifically designed for optimized and scalable search capabilities, such as Elasticsearch or Algolia.
+   See `similarity/5` for more details.
+
+1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling
+   efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html)
+
+   ```elixir
+   iex> insert_posts!(["Wand", "Owl", "What an amazing cloak"])
+   ...> Post
+   ...> |> Torus.full_text_dynamic([p], [p.title], "what a cloak")
+   ...> |> select([p], p.title)
+   ...> |> Repo.all()
+   ["What an amazing cloak"]
+   ```
+
+   See `full_text_dynamic/5` for more details.
+
+1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content, often utilizing natural language processing.
+   [Semantic Search with PostgreSQL and OpenAI Embeddings](https://towardsdatascience.com/semantic-search-with-postgresql-and-openai-embeddings-4d327236f41f)
+
+   Will be added soon.
+
+1. **Hybrid Search**: Combines multiple search techniques (e.g., keyword and semantic) to leverage their strengths for more accurate results.
+
+   Will be added soon.
+
+1. **3rd Party Engines/Providers**: Utilizes external services or software specifically designed for optimized and scalable search capabilities, such as Elasticsearch or Algolia.
 
 ## Torus support
 
-For now, Torus supports similarity and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
+For now, Torus supports pattern match, similarity, and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
 
 <!-- MDOC -->
 

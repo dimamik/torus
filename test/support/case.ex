@@ -26,6 +26,12 @@ defmodule Torus.Case do
         insert!(Post, args)
       end
 
+      def insert_posts!(titles) do
+        for title <- titles do
+          insert_post!(title: title)
+        end
+      end
+
       def insert_author!(args) do
         insert!(Author, args)
       end
