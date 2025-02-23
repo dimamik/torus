@@ -7,7 +7,6 @@ defmodule Torus do
              |> Enum.fetch!(1)
 
   import Ecto.Query
-  import Torus.PostgresMacros
 
   @default_language "english"
 
@@ -192,23 +191,25 @@ defmodule Torus do
 
   ## Options
 
-    * `:type` - similarity type. Defaults to `word`. Possible options are:
-      - `:word` - uses `word_similarity` function. If you're dealing with sentences
+    * `:type` - similarity type. Possible options are:
+      - `:word` (default) - uses `word_similarity` function. If you're dealing with sentences
       and you don't want the length of the strings to affect the search result.
       - `:strict` - uses `strict_word_similarity` function. Prioritizes full matches,
       forces extent boundaries to match word boundaries. Since we don't have
       cross-word trigrams, this function actually returns greatest similarity between
       first string and any continuous extent of words of the second string.
       - `:full` - uses `similarity` function.
-    * `:asc` - sets the ordering to ascending. Defaults to descending.
+    * `:order` - describes the ordering of the results. Possible values are
+      - `:desc` (default) - orders the results by similarity rank in descending order.
+      - `:asc` - orders the results by similarity rank in ascending order.
+      - `:none` - doesn't apply ordering and returns
     * `:limit` - limits the number of results returned (PostgreSQL `LIMIT`). By
-    default limit is not applied.
-    * `:order` - when false, uses boolean operators and returns (unordered) all
-    results that are above `pg_trgm.similarity_threshold`, which default 0.3. When
-    set to true, the results are ordered by similarity rank. Defaults to true.
-    * `:pre_filter` - before ordering (if at all), pre filters (using boolean
-    operators which potentially use GIN indexes) the result set. Omits pre-filtering
-    if false. Defaults to true.
+    default limit is not applied and the results that are above
+    `pg_trgm.similarity_threshold`, which default 0.3.
+    * `:pre_filter` -
+      - `true` (default) -  before applying the order, pre filters (using boolean
+    operators which potentially use GIN indexes) the result set.
+      - `false` - omits pre-filtering and returns all results.
 
   ## Examples
 
@@ -232,12 +233,12 @@ defmodule Torus do
   ## Optimizations
 
   - Use `limit` to limit the number of results returned.
-  - Use `order: false` argument if you don't care about the order of the results.
+  - Use `order: `:none` argument if you don't care about the order of the results.
   The query will return all results that are above the similarity threshold, which
   you can set globally via `SET pg_trgm.similarity_threshold = 0.3;`.
-  - When `order: true` (default) and the limit is not set, the query will do a full
-  table scan, so it's recommended to set as low `limit` as possible.
-
+  - When `order: `:desc` (default) and the limit is not set, the query will do a full
+  table scan, so it's recommended to manually limit the results (by applying `where`
+  clauses to as little rows as possible).
 
   ### Adding an index
 
@@ -264,7 +265,8 @@ defmodule Torus do
         :full -> {"similarity", "%"}
       end
 
-    desc_asc = (Keyword.get(args, :asc, false) && "ASC") || "DESC"
+    order = Keyword.get(args, :order, :desc)
+    desc_asc = order |> to_string() |> String.upcase()
     similarity_string = "#{similarity_function}(?, ?) #{desc_asc}"
 
     Enum.reduce(qualifiers, query, fn qualifier, query ->
@@ -285,7 +287,7 @@ defmodule Torus do
           end
 
         query =
-          if Keyword.get(unquote(args), :order, true) do
+          if unquote(order) != :none do
             order_by(
               unquote(query),
               [unquote_splicing(bindings)],
@@ -308,36 +310,125 @@ defmodule Torus do
   # TODO: Combine different types of searches (or at least show how)
   # ----------------------------------------------------------------
 
-  # TODO: Improve the docs on full-text search
+  @supported_weights ["A", "B", "C", "D"]
+  @term_functions [:websearch_to_tsquery, :plainto_tsquery, :phraseto_tsquery]
+  @rank_functions [:ts_rank_cd, :ts_rank]
+
   @doc """
-  Full text prefix search with rank ordering. Accepts a list of columns to search in.
-  Cleans the term, so it can be input directly by the user.
+  Full text search with rank ordering. Accepts a list of columns to search in.
+  Cleans the term, so it can be input directly by the user. The default preset of
+  settings is optimal for most cases.
+
+  ## Options
+    * `:language` - language used for the search. Defaults to `"english"`.
+    * `:prefix_search` - when true, the term is treated as a prefix. Otherwise, only
+    counts full-word matches. Defaults to true.
+    * `:nullable_columns` - a list of columns which values can take `null`s, so that
+    they can be escaped during the search. Defaults to all qualifiers. When passed -
+    speed up the search.
+    For example `[p.title, a.first_name]`.
+    * `:term_function` - function used to convert the term to `ts_query`. Can be one of:
+      - `:websearch_to_tsquery` (default) - converts term to a tsquery, normalizing
+      words according to the specified or default configuration. Quoted word sequences
+      are converted to phrase tests. The word “or” is understood as producing an OR
+      operator, and a dash produces a NOT operator; other punctuation is ignored. This
+      approximates the behavior of some common web search tools.
+      - `:plainto_tsquery` - Converts term to a tsquery, normalizing words according
+      to the specified or default configuration. Any punctuation in the string is
+      ignored (it does not determine query operators). The resulting query matches
+      documents containing all non-stopwords in the term.
+      - `:phraseto_tsquery` - Converts term to a tsquery, normalizing words according
+      to the specified or default configuration. Any punctuation in the string is
+      ignored (it does not determine query operators). The resulting query matches
+      phrases containing all non-stopwords in the text.
+    * `:rank_function` - function used to rank the results.
+      - `:ts_rank_cd` (default) - computes a score showing how well the vector matches
+      the query, using a cover density algorithm. See [Ranking Search Results](https://postgresql.org/docs/current/interactive/textsearch-controls.html#TEXTSEARCH-RANKING) for more details.
+      - `:ts_rank` - computes a score showing how well the vector matches the query.
+    * `:rank_weights` - a list of weights for each column. Defaults to `[:A, :B, :C, :D]`.
+    The length of weights (if provided) should be the same as the length of the columns we search for.
+    A single weight can be either a string or an atom. Possible values are:
+      - `:A` - 1.0
+      - `:B` - 0.4
+      - `:C` - 0.2
+      - `:D` - 0.1
+    * `:rank_normalization` - a string that specifies whether and how a document's
+    length should impact its rank. The integer option controls several behaviors, so
+    it is a bit mask: you can specify one or more behaviors using `|` (for example, `2|4`).
+      - `0` (the default) - ignores the document length
+      - `1`  - divides the rank by 1 + the logarithm of the document length
+      - `2`  - divides the rank by the document length
+      - `4`  - divides the rank by the mean harmonic distance between extents (this is
+      implemented only by `ts_rank_cd`)
+      - `8`  - divides the rank by the number of unique words in document
+      - `16` -  divides the rank by 1 + the logarithm of the number of unique words in document
+      - `32` - divides the rank by itself + 1
 
   ## Example usage
 
-  ```elixir
-  iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
-  ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
-  ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
-  ...>  Post
-  ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
-  ...> |> select([p], p.title)
-  ...> |> Repo.all()
-  ["Diagon Bombshell"]
-  ```
+      iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+      ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+      ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
+      ...>  Post
+      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Diagon Bombshell"]
 
-  TODO: Add section on optimization, tradeoffs, etc.
+  ## Optimizations
+
+    - Store precomputed tsvector in a separate column, add a GIN index to it, and use
+    `full_text_stored/5`. See more on how to add an index and how to store a column in
+    the `full_text_stored/5` docs. If that's not feasible, read on.
+
+    - Pass implicitly `nullable_columns` so that we're leveraging existing non-coalesce
+    GIN indexes (if present) and are not doing unneeded work.
+
+    - Add a GIN ts_vector index on the column(s) you search in.
+    Use `Torus.Helpers.tap_sql/2` on your query (with all the options passed) to see the exact search string and add an index to it. For example for nullable title, the GIN index could look like:
+
+      ```sql
+      CREATE INDEX index_gin_posts_title
+      ON posts USING GIN (to_tsvector('english', COALESCE(title, '')));
+      ```
   """
   defmacro full_text_dynamic(query, bindings, qualifiers, term, args \\ []) do
-    language = language(args)
     qualifiers = List.wrap(qualifiers)
+    language = get_language(args)
+
+    rank_weights =
+      Keyword.get_lazy(args, :rank_weights, fn ->
+        exceeding_size = max(length(qualifiers) - 4, 0)
+        [:A, :B, :C, :D] ++ List.duplicate(:D, exceeding_size)
+      end)
+
+    if length(rank_weights) < length(qualifiers) do
+      raise """
+      The length of `rank_weights` should be the same as the length of the qualifiers.
+      """
+    end
+
+    if not Enum.all?(rank_weights, &(to_string(&1) in @supported_weights)) do
+      raise """
+      Each rank weight from `rank_weights` should be one of the: #{@supported_weights}
+      """
+    end
+
+    term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
+    rank_function = get_arg!(args, :rank_function, :ts_rank_cd, @rank_functions)
+    nullable_columns = Keyword.get(args, :nullable_columns, qualifiers)
+
+    rank_normalization =
+      Keyword.get_lazy(args, :rank_normalization, fn ->
+        if rank_function == :ts_rank_cd, do: 4, else: 1
+      end)
 
     where_ast =
       Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
         quote do
           dynamic(
             [unquote_splicing(bindings)],
-            to_tsquery_dynamic(unquote(qualifier), ^unquote(term)) or
+            to_tsquery_dynamic(unquote(qualifier), ^unquote(term), unquote(args)) or
               ^unquote(conditions_acc)
           )
         end
@@ -346,12 +437,14 @@ defmodule Torus do
     weights_prepared =
       qualifiers
       |> Enum.with_index()
-      |> Enum.map_join(" || ", fn {_qualifier, index} ->
-        "setweight(to_tsvector(#{language}, COALESCE(?, '')), '#{<<index + 65::utf8>>}')"
+      |> Enum.map_join(" || ", fn {qualifier, index} ->
+        weight = Enum.fetch!(rank_weights, index)
+        coalesce = if qualifier in nullable_columns, do: "COALESCE(?, '')", else: "?"
+        "setweight(to_tsvector(#{language}, #{coalesce}), '#{weight}')"
       end)
 
     fragment_string = """
-    ts_rank(#{weights_prepared}, websearch_to_tsquery(#{language}, ?)) DESC
+    #{rank_function}(#{weights_prepared}, #{term_function}(#{language}, ?), #{rank_normalization}) DESC
     """
 
     fragment_prepared =
@@ -369,6 +462,32 @@ defmodule Torus do
       |> order_by(
         [unquote_splicing(bindings)],
         unquote(fragment_prepared)
+      )
+    end
+  end
+
+  @doc false
+  defmacro to_tsquery_dynamic(column, query_text, args \\ []) do
+    term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
+    prefix_search = if Keyword.get(args, :prefix_search, true), do: "::text || ':*'", else: ""
+
+    fragment_string =
+      """
+      CASE
+          WHEN trim(#{term_function}(?, ?)::text) = '' THEN FALSE
+          ELSE to_tsvector(?, ?) @@ (#{term_function}(?, ?)#{prefix_search})::tsquery
+      END
+      """
+
+    quote do
+      fragment(
+        unquote(fragment_string),
+        unquote(@default_language),
+        unquote(query_text),
+        unquote(@default_language),
+        unquote(column),
+        unquote(@default_language),
+        unquote(query_text)
       )
     end
   end
@@ -416,7 +535,19 @@ defmodule Torus do
     end
   end
 
-  defp language(args) do
+  defp get_language(args) do
     args |> Keyword.get(:language, @default_language) |> then(&("'" <> &1 <> "'"))
+  end
+
+  defp get_arg!(args, value_key, value_default, supported_values) do
+    value = Keyword.get(args, value_key, value_default)
+
+    if value not in supported_values do
+      raise """
+      The value of `#{value_key}` should be one of the: #{supported_values}
+      """
+    end
+
+    value
   end
 end

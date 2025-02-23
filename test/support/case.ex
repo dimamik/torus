@@ -16,6 +16,7 @@ defmodule Torus.Case do
   using do
     quote do
       import Torus
+      import Torus.Helpers
       import Ecto.Query
 
       alias Torus.Test.Repo
