@@ -291,33 +291,34 @@ defmodule Torus do
 
     desc_asc = order |> to_string() |> String.upcase()
     similarity_string = "#{similarity_function}(?, ?) #{desc_asc}"
-    multiple_qualifiers? = length(qualifiers) > 1
+    multiple_qualifiers = length(qualifiers) > 1
+    has_order = order != :none
 
     # Query building
     quote do
       unquote(query)
-      |> apply_if(unquote(pre_filter) and unquote(multiple_qualifiers?), fn query ->
+      |> apply_if(unquote(pre_filter) and unquote(multiple_qualifiers), fn query ->
         where(
           query,
           [unquote_splicing(bindings)],
           operator(^unquote(term), unquote(operator), concat_ws(" ", unquote(qualifiers)))
         )
       end)
-      |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers?), fn query ->
+      |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers), fn query ->
         where(
           query,
           [unquote_splicing(bindings)],
           operator(^unquote(term), unquote(operator), unquote(List.first(qualifiers)))
         )
       end)
-      |> apply_if(unquote(order) != :none and unquote(multiple_qualifiers?), fn query ->
+      |> apply_if(unquote(has_order) and unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
           fragment(unquote(similarity_string), unquote(term), concat_ws(" ", unquote(qualifiers)))
         )
       end)
-      |> apply_if(unquote(order) != :none and not unquote(multiple_qualifiers?), fn query ->
+      |> apply_if(unquote(has_order) and not unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
@@ -465,6 +466,7 @@ defmodule Torus do
     # Arguments preparation
     prefix_search = if prefix_search, do: "::text || ':*'", else: ""
     desc_asc = order |> to_string() |> String.upcase()
+    has_order = order != :none
 
     weights_prepared =
       qualifiers
@@ -528,7 +530,7 @@ defmodule Torus do
             where(unquote(query), [unquote_splicing(bindings)], unquote(concat_filter_fragment))
         end
       )
-      |> apply_if(unquote(order) != :none, fn query ->
+      |> apply_if(unquote(has_order), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
