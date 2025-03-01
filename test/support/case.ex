@@ -15,10 +15,11 @@ defmodule Torus.Case do
 
   using do
     quote do
-      import Torus
-      import Torus.Helpers
       import Ecto.Query
+      import Torus
+      import Torus.QueryInspector
 
+      alias Torus.QueryInspector
       alias Torus.Test.Repo
       alias TorusTest.Author
       alias TorusTest.Post
@@ -27,9 +28,21 @@ defmodule Torus.Case do
         insert!(Post, args)
       end
 
-      def insert_posts!(titles) do
+      def insert_posts!(titles: titles) when is_list(titles) do
         for title <- titles do
           insert_post!(title: title)
+        end
+      end
+
+      def insert_posts!([title | _] = titles) when is_list(titles) and is_binary(title) do
+        for title <- titles do
+          insert_post!(title: title)
+        end
+      end
+
+      def insert_posts!([post | _] = posts) when is_map(post) do
+        for post <- posts do
+          insert_post!(Keyword.new(post))
         end
       end
 

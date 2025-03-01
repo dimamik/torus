@@ -13,23 +13,23 @@ defmodule Torus do
   ## Similarity searches
 
   @doc """
-  Case insensitive pattern matching search using
+  Case-insensitive pattern matching search using
   [PostgreSQL `ILIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
-  **Doesn't clean the term, so it needs to be sanitized before being passed in, see
-  [LIKE-injections](https://githubengineering.com/like-injection/)**
+  **Doesn't clean the term, so it needs to be sanitized before being passed in. See
+  [LIKE-injections](https://githubengineering.com/like-injection/).**
+
 
   ## Examples
 
-      iex> insert_posts!(["Wand", "Magic wand", "Owl"])
+      iex> insert_posts!(titles: ["Wand", "Magic wand", "Owl"])
       ...> Post
       ...> |> Torus.ilike([p], [p.title], "wan%")
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Wand"]
 
-      iex> insert_post!(title: "hogwarts")
-      ...> insert_post!(body: "HOGWARTS")
+      iex> insert_posts!([%{title: "hogwarts", body: nil}, %{title: nil, body: "HOGWARTS"}])
       ...> Post
       ...> |> Torus.ilike([p], [p.title, p.body], "%OGWART%")
       ...> |> select([p], %{title: p.title, body: p.body})
@@ -67,15 +67,14 @@ defmodule Torus do
   end
 
   @doc """
-  Case sensitive pattern matching search using [PostgreSQL `LIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
+  Case-sensitive pattern matching search using [PostgreSQL `LIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
   **Doesn't clean the term, so it needs to be sanitized before being passed in, see
   [LIKE-injections](https://githubengineering.com/like-injection/)**
 
   ## Examples
 
-      iex> insert_post!(title: "hogwarts")
-      ...> insert_post!(body: "HOGWARTS")
+      iex> insert_posts!([%{title: "hogwarts", body: nil}, %{title: nil, body: "HOGWARTS"}])
       ...> Post
       ...> |> Torus.like([p], [p.title, p.body], "%OGWART%")
       ...> |> select([p], p.body)
@@ -84,30 +83,34 @@ defmodule Torus do
 
   ## Optimizations
 
-  - `like` is case-sensitive, so it can take advantage of B-tree indexes when there
-  is no wildcard (%) at the beginning of the search term, prefer it over `ilike` if
+  - `like/5` is case-sensitive, so it can take advantage of B-tree indexes when there
+  is no wildcard (%) at the beginning of the search term, prefer it over `ilike/5` if
   possible.
 
-  Adding a B-tree index:
+    Adding a B-tree index:
 
-  ```sql
-  CREATE INDEX index_posts_on_title ON posts (title);
-  ```
+      ```sql
+      CREATE INDEX index_posts_on_title ON posts (title);
+      ```
 
-  - Use `GIN` or `GiST` Index with `pg_trgm`extension for LIKE and ILIKE
+  - Use `GIN` or `GiST` Index with `pg_trgm` extension for LIKE and ILIKE.
 
-    - When searching for substrings (%word%), B-tree indexes won't help. Instead,
-    use trigram indexing (pg_trgm extension).
-    - ```sql
+    When searching for substrings (%word%), B-tree indexes won't help. Instead,
+    use trigram indexing (`pg_trgm` extension):
+
+      ```sql
       CREATE EXTENSION IF NOT EXISTS pg_trgm;
       CREATE INDEX posts_title_trgm_idx ON posts USING GIN (title gin_trgm_ops);
       ```
+
   - If using prefix search, convert data to lowercase and use B-tree index for
-    case-insensitive search
-    - ```sql
+    case-insensitive search:
+
+      ```sql
       ALTER TABLE posts ADD COLUMN title_lower TEXT GENERATED ALWAYS AS (LOWER(title)) STORED;
       CREATE INDEX index_posts_on_title ON posts (title_lower);
       ```
+
       ```elixir
       Torus.like([p], [p.title_lower], "hogwarts%")
       ```
@@ -148,13 +151,6 @@ defmodule Torus do
       ...> |> Repo.all()
       ["abc"]
 
-      iex> insert_posts!(["Magic wand", "Wand", "Owl"])
-      ...> Post
-      ...> |> Torus.similarity([p], [p.title], "want", limit: 2)
-      ...> |> select([p], p.title)
-      ...> |> Repo.all()
-      ["Wand", "Magic wand"]
-
   ## Optimizations
   - If regex is needed, use POSIX regex with `~` or `~*` operators since they _may_
   leverage GIN or GiST indexes in some cases. These operators will be introduced later on.
@@ -184,32 +180,35 @@ defmodule Torus do
   # TODO: Add POSIX Regular Expressions
   # -----------------------------------
 
+  @similarity_types ~w[word strict full]a
+  @similarity_order_types ~w[desc asc none]a
+  @true_false ~w[true false]a
   @doc """
-  Case insensitive similarity search using [PostgreSQL `word_similarity`](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
+  Case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
 
   **You need to have pg_trgm extension installed.**
 
   ## Options
 
     * `:type` - similarity type. Possible options are:
-      - `:word` (default) - uses `word_similarity` function. If you're dealing with sentences
+      - `:full` (default) - uses `similarity` function.
+      - `:word` - uses `word_similarity` function. If you're dealing with sentences
       and you don't want the length of the strings to affect the search result.
       - `:strict` - uses `strict_word_similarity` function. Prioritizes full matches,
       forces extent boundaries to match word boundaries. Since we don't have
       cross-word trigrams, this function actually returns greatest similarity between
       first string and any continuous extent of words of the second string.
-      - `:full` - uses `similarity` function.
     * `:order` - describes the ordering of the results. Possible values are
       - `:desc` (default) - orders the results by similarity rank in descending order.
       - `:asc` - orders the results by similarity rank in ascending order.
       - `:none` - doesn't apply ordering and returns
     * `:limit` - limits the number of results returned (PostgreSQL `LIMIT`). By
-    default limit is not applied and the results that are above
-    `pg_trgm.similarity_threshold`, which default 0.3.
-    * `:pre_filter` -
-      - `true` (default) -  before applying the order, pre filters (using boolean
+    default limit is not applied and the results are above
+    `pg_trgm.similarity_threshold`, which defaults to 0.3.
+    * `:pre_filter` - whether or not to pre-filter the results:
+      - `false` (default) - omits pre-filtering and returns all results.
+      - `true` -  before applying the order, pre filters (using boolean
     operators which potentially use GIN indexes) the result set.
-      - `false` - omits pre-filtering and returns all results.
 
   ## Examples
 
@@ -217,21 +216,31 @@ defmodule Torus do
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.similarity([p], [p.title, p.body], "boshel", limit: 1)
+      ...> |> Torus.similarity([p], [p.title, p.body], "Diagon Bombshell", limit: 1)
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
 
       iex> insert_posts!(["Wand", "Owl", "What an amazing cloak"])
       ...> Post
-      ...> |> Torus.full_text_dynamic([p], [p.title], "what a cloak")
+      ...> |> Torus.similarity([p], [p.title], "what a cloak", pre_filter: true)
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["What an amazing cloak"]
 
+      iex> insert_posts!(["Magic wand", "Wand", "Owlyth"])
+      ...> Post
+      ...> |> Torus.similarity([p], [p.title], "wand", pre_filter: true)
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Wand", "Magic wand"]
 
   ## Optimizations
 
+  - Use `pre_filter: true` to pre-filter the results before applying the order.
+  This would significantly reduce the number of rows to order. The pre-filtering
+  phase uses different (boolean) similarity operators which more actively leverage
+  GIN indexes.
   - Use `limit` to limit the number of results returned.
   - Use `order: `:none` argument if you don't care about the order of the results.
   The query will return all results that are above the similarity threshold, which
@@ -254,65 +263,79 @@ defmodule Torus do
   with `%` (which could use a GIN index), and next we compute (potentially expensive)
   the ranks using `similarity` function and order the results.
   """
+  # TODO: Add `:join_type` argument
+  # I'll fix the complexity, I promise!
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defmacro similarity(query, bindings, qualifiers, term, args \\ []) do
+    # Arguments validation
     qualifiers = List.wrap(qualifiers)
     limit = Keyword.get(args, :limit)
+    pre_filter = get_arg!(args, :pre_filter, false, @true_false)
 
+    if not is_nil(limit) and not is_integer(limit) do
+      raise """
+      `:limit` should be an integer. Got: #{inspect(limit)}
+      """
+    end
+
+    similarity_type = get_arg!(args, :type, :full, @similarity_types)
+    order = get_arg!(args, :order, :desc, @similarity_order_types)
+
+    # Arguments preparation
     {similarity_function, operator} =
-      case Keyword.get(args, :type, :word) do
-        :word -> {"word_similarity", "<%"}
+      case similarity_type do
         :strict -> {"strict_word_similarity", "<<%"}
+        :word -> {"word_similarity", "<%"}
         :full -> {"similarity", "%"}
       end
 
-    order = Keyword.get(args, :order, :desc)
     desc_asc = order |> to_string() |> String.upcase()
     similarity_string = "#{similarity_function}(?, ?) #{desc_asc}"
+    multiple_qualifiers? = length(qualifiers) > 1
 
-    Enum.reduce(qualifiers, query, fn qualifier, query ->
-      quote do
-        query =
-          if Keyword.get(unquote(args), :pre_filter, true) do
-            where(
-              unquote(query),
-              [unquote_splicing(bindings)],
-              operator(
-                unquote(qualifier),
-                unquote(operator),
-                unquote(term)
-              )
-            )
-          else
-            unquote(query)
-          end
-
-        query =
-          if unquote(order) != :none do
-            order_by(
-              unquote(query),
-              [unquote_splicing(bindings)],
-              fragment(
-                unquote(similarity_string),
-                unquote(qualifier),
-                unquote(term)
-              )
-            )
-          else
-            query
-          end
-
-        if unquote(limit), do: limit(query, ^unquote(limit)), else: query
-      end
-    end)
+    # Query building
+    quote do
+      unquote(query)
+      |> apply_if(unquote(pre_filter) and unquote(multiple_qualifiers?), fn query ->
+        where(
+          query,
+          [unquote_splicing(bindings)],
+          operator(^unquote(term), unquote(operator), concat_ws(" ", unquote(qualifiers)))
+        )
+      end)
+      |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers?), fn query ->
+        where(
+          query,
+          [unquote_splicing(bindings)],
+          operator(^unquote(term), unquote(operator), unquote(List.first(qualifiers)))
+        )
+      end)
+      |> apply_if(unquote(order) != :none and unquote(multiple_qualifiers?), fn query ->
+        order_by(
+          query,
+          [unquote_splicing(bindings)],
+          fragment(unquote(similarity_string), unquote(term), concat_ws(" ", unquote(qualifiers)))
+        )
+      end)
+      |> apply_if(unquote(order) != :none and not unquote(multiple_qualifiers?), fn query ->
+        order_by(
+          query,
+          [unquote_splicing(bindings)],
+          fragment(unquote(similarity_string), unquote(term), unquote(List.first(qualifiers)))
+        )
+      end)
+      |> apply_if(unquote(limit), &limit(&1, ^unquote(limit)))
+    end
   end
 
   # ----------------------------------------------------------------
   # TODO: Combine different types of searches (or at least show how)
   # ----------------------------------------------------------------
 
-  @supported_weights ["A", "B", "C", "D"]
-  @term_functions [:websearch_to_tsquery, :plainto_tsquery, :phraseto_tsquery]
-  @rank_functions [:ts_rank_cd, :ts_rank]
+  @supported_weights ~w[A B C D]
+  @term_functions ~w[websearch_to_tsquery plainto_tsquery phraseto_tsquery]a
+  @rank_functions ~w[ts_rank_cd ts_rank]a
+  @filter_types ~w[or concat none]a
 
   @doc """
   Full text search with rank ordering. Accepts a list of columns to search in.
@@ -321,23 +344,20 @@ defmodule Torus do
 
   ## Options
     * `:language` - language used for the search. Defaults to `"english"`.
-    * `:prefix_search` - when true, the term is treated as a prefix. Otherwise, only
-    counts full-word matches. Defaults to true.
-    * `:nullable_columns` - a list of columns which values can take `null`s, so that
-    they can be escaped during the search. Defaults to all qualifiers. When passed -
-    speed up the search.
-    For example `[p.title, a.first_name]`.
+    * `:prefix_search` - whether to apply prefix search.
+      - `true` (default) - the term is treated as a prefix
+      - `false` - only counts full-word matches
     * `:term_function` - function used to convert the term to `ts_query`. Can be one of:
       - `:websearch_to_tsquery` (default) - converts term to a tsquery, normalizing
       words according to the specified or default configuration. Quoted word sequences
       are converted to phrase tests. The word “or” is understood as producing an OR
       operator, and a dash produces a NOT operator; other punctuation is ignored. This
       approximates the behavior of some common web search tools.
-      - `:plainto_tsquery` - Converts term to a tsquery, normalizing words according
+      - `:plainto_tsquery` - converts term to a tsquery, normalizing words according
       to the specified or default configuration. Any punctuation in the string is
       ignored (it does not determine query operators). The resulting query matches
       documents containing all non-stopwords in the term.
-      - `:phraseto_tsquery` - Converts term to a tsquery, normalizing words according
+      - `:phraseto_tsquery` - converts term to a tsquery, normalizing words according
       to the specified or default configuration. Any punctuation in the string is
       ignored (it does not determine query operators). The resulting query matches
       phrases containing all non-stopwords in the text.
@@ -355,14 +375,30 @@ defmodule Torus do
     * `:rank_normalization` - a string that specifies whether and how a document's
     length should impact its rank. The integer option controls several behaviors, so
     it is a bit mask: you can specify one or more behaviors using `|` (for example, `2|4`).
-      - `0` (the default) - ignores the document length
+      - `0` (default for `ts_rank`) - ignores the document length
       - `1`  - divides the rank by 1 + the logarithm of the document length
       - `2`  - divides the rank by the document length
-      - `4`  - divides the rank by the mean harmonic distance between extents (this is
-      implemented only by `ts_rank_cd`)
+      - `4` (default for `ts_rank_cs`)  - divides the rank by the mean harmonic
+      distance between extents (this is implemented only by `ts_rank_cd`)
       - `8`  - divides the rank by the number of unique words in document
-      - `16` -  divides the rank by 1 + the logarithm of the number of unique words in document
+      - `16` -  divides the rank by 1 + the logarithm of the number of unique words in
+      document
       - `32` - divides the rank by itself + 1
+    * `:order` - describes the ordering of the results. Possible values are
+      - `:desc` (default) - orders the results by similarity rank in descending order.
+      - `:asc` - orders the results by similarity rank in ascending order.
+      - `:none` - doesn't apply ordering at all.
+    * `:filter_type`
+      - `:or` (default) - uses `OR` operator to combine different column matches.
+      Selecting this option means that the search term won't match across columns.
+      - `:concat` - joins the columns into a single tsvector and searches for the
+      term in the concatenated string containing all columns.
+      - `:none` - doesn't apply any filtering and returns all results.
+    * `:nullable_columns` - a list of columns which values can take `null`s, so that
+    they can be escaped during the search. Defaults to all qualifiers. When passed -
+    speeds up the search. For example `[p.title, a.first_name]` would mean that only
+    `p.title` and `a.first_name` columns can take `null`s, whereas other columns are
+    guaranteed by the caller to be non-nullable.
 
   ## Example usage
 
@@ -370,7 +406,7 @@ defmodule Torus do
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
+      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar", filter_type: :concat)
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
@@ -385,7 +421,7 @@ defmodule Torus do
     GIN indexes (if present) and are not doing unneeded work.
 
     - Add a GIN ts_vector index on the column(s) you search in.
-    Use `Torus.Helpers.tap_sql/2` on your query (with all the options passed) to see the exact search string and add an index to it. For example for nullable title, the GIN index could look like:
+    Use `Torus.QueryInspector.tap_sql/2` on your query (with all the options passed) to see the exact search string and add an index to it. For example for nullable title, the GIN index could look like:
 
       ```sql
       CREATE INDEX index_gin_posts_title
@@ -393,8 +429,15 @@ defmodule Torus do
       ```
   """
   defmacro full_text_dynamic(query, bindings, qualifiers, term, args \\ []) do
+    # Arguments validation
     qualifiers = List.wrap(qualifiers)
     language = get_language(args)
+    prefix_search = get_arg!(args, :prefix_search, true, @true_false)
+    term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
+    rank_function = get_arg!(args, :rank_function, :ts_rank_cd, @rank_functions)
+    filter_type = get_arg!(args, :filter_type, :or, @filter_types)
+    nullable_columns = Keyword.get(args, :nullable_columns, qualifiers)
+    order = get_arg!(args, :order, :desc, @similarity_order_types)
 
     rank_weights =
       Keyword.get_lazy(args, :rank_weights, fn ->
@@ -414,25 +457,14 @@ defmodule Torus do
       """
     end
 
-    term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
-    rank_function = get_arg!(args, :rank_function, :ts_rank_cd, @rank_functions)
-    nullable_columns = Keyword.get(args, :nullable_columns, qualifiers)
-
     rank_normalization =
       Keyword.get_lazy(args, :rank_normalization, fn ->
         if rank_function == :ts_rank_cd, do: 4, else: 1
       end)
 
-    where_ast =
-      Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
-        quote do
-          dynamic(
-            [unquote_splicing(bindings)],
-            to_tsquery_dynamic(unquote(qualifier), ^unquote(term), unquote(args)) or
-              ^unquote(conditions_acc)
-          )
-        end
-      end)
+    # Arguments preparation
+    prefix_search = if prefix_search, do: "::text || ':*'", else: ""
+    desc_asc = order |> to_string() |> String.upcase()
 
     weights_prepared =
       qualifiers
@@ -443,26 +475,66 @@ defmodule Torus do
         "setweight(to_tsvector(#{language}, #{coalesce}), '#{weight}')"
       end)
 
-    fragment_string = """
-    #{rank_function}(#{weights_prepared}, #{term_function}(#{language}, ?), #{rank_normalization}) DESC
-    """
+    # TODO: Check if the trim is needed?
+    concat_filter_string =
+      "#{weights_prepared} @@ (#{term_function}(#{language}, ?)#{prefix_search})::tsquery"
 
-    fragment_prepared =
+    concat_filter_fragment =
       quote do
         fragment(
-          unquote(fragment_string),
+          unquote(concat_filter_string),
           unquote_splicing(qualifiers),
           ^unquote(term)
         )
       end
 
+    order_string = """
+    #{rank_function}(#{weights_prepared}, #{term_function}(#{language}, ?), #{rank_normalization}) #{desc_asc}
+    """
+
+    order_fragment =
+      quote do
+        fragment(
+          unquote(order_string),
+          unquote_splicing(qualifiers),
+          ^unquote(term)
+        )
+      end
+
+    or_filter_ast =
+      Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
+        quote do
+          dynamic(
+            [unquote_splicing(bindings)],
+            to_tsquery_dynamic(unquote(qualifier), ^unquote(term), unquote(args)) or
+              ^unquote(conditions_acc)
+          )
+        end
+      end)
+
+    # Query building
     quote do
       unquote(query)
-      |> where(^unquote(where_ast))
-      |> order_by(
-        [unquote_splicing(bindings)],
-        unquote(fragment_prepared)
+      |> apply_case(
+        unquote(filter_type),
+        fn
+          :none, query ->
+            query
+
+          :or, query ->
+            where(unquote(query), ^unquote(or_filter_ast))
+
+          :concat, query ->
+            where(unquote(query), [unquote_splicing(bindings)], unquote(concat_filter_fragment))
+        end
       )
+      |> apply_if(unquote(order) != :none, fn query ->
+        order_by(
+          query,
+          [unquote_splicing(bindings)],
+          unquote(order_fragment)
+        )
+      end)
     end
   end
 
@@ -522,15 +594,37 @@ defmodule Torus do
     end
   end
 
-  @doc """
-  Use any postgres operator in a query.
-  """
+  # Private helpers
+
+  @doc false
   defmacro operator(a, operator, b) do
     quote do
       fragment(
         unquote("? #{operator} ?"),
         unquote(a),
         unquote(b)
+      )
+    end
+  end
+
+  @doc false
+  def apply_if(query, condition, query_fun) do
+    if condition, do: query_fun.(query), else: query
+  end
+
+  def apply_case(query, case_condition, query_fun) do
+    query_fun.(case_condition, query)
+  end
+
+  @doc false
+  defmacro concat_ws(separator, qualifiers) do
+    fragment_string = "concat_ws(?" <> String.duplicate(", ?", length(qualifiers)) <> ")"
+
+    quote do
+      fragment(
+        unquote(fragment_string),
+        unquote(separator),
+        unquote_splicing(qualifiers)
       )
     end
   end

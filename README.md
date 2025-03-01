@@ -51,7 +51,7 @@ See `full_text_dynamic/5` for more details.
    ```elixir
    iex> insert_posts!(["Magic wand", "Wand", "Owl"])
    ...> Post
-   ...> |> Torus.similarity([p], [p.title], "wantt", limit: 2)
+   ...> |> Torus.similarity([p], [p.title], "want", limit: 2)
    ...> |> select([p], p.title)
    ...> |> Repo.all()
    ["Wand", "Magic wand"]
@@ -87,6 +87,10 @@ See `full_text_dynamic/5` for more details.
 ## Torus support
 
 For now, Torus supports pattern match, similarity, and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
+
+## Debugging your queries
+
+Torus offers a few helpers to debug, explain, and analyze your queries before using them on production. See `Torus.QueryInspector` for more details.
 
 <!-- MDOC -->
 
