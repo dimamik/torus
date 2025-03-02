@@ -7,7 +7,7 @@
 
 <!-- MDOC -->
 
-Torus is a plug-and-play library that seamlessly integrates PostgreSQL's search into Ecto, streamlining the construction of advanced search queries.
+Torus is a plug-and-play Elixir library that seamlessly integrates PostgreSQL's search into Ecto, streamlining the construction of advanced search queries.
 
 ## Usage
 
@@ -16,7 +16,7 @@ The package can be installed by adding `torus` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:torus, "~> 0.2.1"}
+    {:torus, "~> 0.2"}
   ]
 end
 ```
@@ -46,29 +46,30 @@ See `full_text_dynamic/5` for more details.
 
    See `like/5`, `ilike/5`, and `similar_to/5` for more details.
 
-1. **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance.
+1. **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance. Is great for fuzzy searching and ignoring typos in short texts.
 
    ```elixir
-   iex> insert_posts!(["Magic wand", "Wand", "Owl"])
+   iex> insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
    ...> Post
-   ...> |> Torus.similarity([p], [p.title], "want", limit: 2)
+   ...> |> Torus.similarity([p], [p.title], "hoggwarrds", limit: 2)
    ...> |> select([p], p.title)
    ...> |> Repo.all()
-   ["Wand", "Magic wand"]
+   ["Hogwarts Secrets", "Hogwart’s Secret"]
    ```
 
    See `similarity/5` for more details.
 
-1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling
-   efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html)
+1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html). Is great for large datasets to quickly return relevant results.
 
    ```elixir
-   iex> insert_posts!(["Wand", "Owl", "What an amazing cloak"])
-   ...> Post
-   ...> |> Torus.full_text_dynamic([p], [p.title], "what a cloak")
-   ...> |> select([p], p.title)
-   ...> |> Repo.all()
-   ["What an amazing cloak"]
+      iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+      ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+      ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
+      ...>  Post
+      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Diagon Bombshell"]
    ```
 
    See `full_text_dynamic/5` for more details.

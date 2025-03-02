@@ -181,7 +181,7 @@ defmodule Torus do
   # -----------------------------------
 
   @similarity_types ~w[word strict full]a
-  @similarity_order_types ~w[desc asc none]a
+  @order_types ~w[desc asc none]a
   @true_false ~w[true false]a
   @doc """
   Case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
@@ -228,13 +228,6 @@ defmodule Torus do
       ...> |> Repo.all()
       ["What an amazing cloak"]
 
-      iex> insert_posts!(["Magic wand", "Wand", "Owlyth"])
-      ...> Post
-      ...> |> Torus.similarity([p], [p.title], "wand", pre_filter: true)
-      ...> |> select([p], p.title)
-      ...> |> Repo.all()
-      ["Wand", "Magic wand"]
-
   ## Optimizations
 
   - Use `pre_filter: true` to pre-filter the results before applying the order.
@@ -242,12 +235,12 @@ defmodule Torus do
   phase uses different (boolean) similarity operators which more actively leverage
   GIN indexes.
   - Use `limit` to limit the number of results returned.
-  - Use `order: `:none` argument if you don't care about the order of the results.
+  - Use `order: :none` argument if you don't care about the order of the results.
   The query will return all results that are above the similarity threshold, which
   you can set globally via `SET pg_trgm.similarity_threshold = 0.3;`.
-  - When `order: `:desc` (default) and the limit is not set, the query will do a full
+  - When `order: :desc` (default) and the limit is not set, the query will do a full
   table scan, so it's recommended to manually limit the results (by applying `where`
-  clauses to as little rows as possible).
+  clauses to limit the rows as much as possible).
 
   ### Adding an index
 
@@ -256,41 +249,31 @@ defmodule Torus do
 
   CREATE INDEX index_posts_on_title ON posts USING GIN (title gin_trgm_ops);
   ```
-
-  ## Already implemented optimizations
-
-  - Instead of scanning all rows and computing similarity for each, we first filter
-  with `%` (which could use a GIN index), and next we compute (potentially expensive)
-  the ranks using `similarity` function and order the results.
   """
-  # TODO: Add `:join_type` argument
-  # I'll fix the complexity, I promise!
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defmacro similarity(query, bindings, qualifiers, term, args \\ []) do
-    # Arguments validation
-    qualifiers = List.wrap(qualifiers)
+    # Arguments fetching
     limit = Keyword.get(args, :limit)
+    order = get_arg!(args, :order, :desc, @order_types)
     pre_filter = get_arg!(args, :pre_filter, false, @true_false)
-
-    if not is_nil(limit) and not is_integer(limit) do
-      raise """
-      `:limit` should be an integer. Got: #{inspect(limit)}
-      """
-    end
-
+    qualifiers = List.wrap(qualifiers)
     similarity_type = get_arg!(args, :type, :full, @similarity_types)
-    order = get_arg!(args, :order, :desc, @similarity_order_types)
+
+    # Arguments validation
+    raise_if(
+      not is_nil(limit) and not is_integer(limit),
+      "`:limit` should be an integer. Got: #{inspect(limit)}"
+    )
 
     # Arguments preparation
-    {similarity_function, operator} =
+    {similarity_function, similarity_operator} =
       case similarity_type do
+        :full -> {"similarity", "%"}
         :strict -> {"strict_word_similarity", "<<%"}
         :word -> {"word_similarity", "<%"}
-        :full -> {"similarity", "%"}
       end
 
-    desc_asc = order |> to_string() |> String.upcase()
-    similarity_string = "#{similarity_function}(?, ?) #{desc_asc}"
+    desc_asc_string = descending_ascending(order)
+    similarity_function = "#{similarity_function}(?, ?) #{desc_asc_string}"
     multiple_qualifiers = length(qualifiers) > 1
     has_order = order != :none
 
@@ -301,28 +284,28 @@ defmodule Torus do
         where(
           query,
           [unquote_splicing(bindings)],
-          operator(^unquote(term), unquote(operator), concat_ws(" ", unquote(qualifiers)))
+          operator(^unquote(term), unquote(similarity_operator), concat_ws(unquote(qualifiers)))
         )
       end)
       |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers), fn query ->
         where(
           query,
           [unquote_splicing(bindings)],
-          operator(^unquote(term), unquote(operator), unquote(List.first(qualifiers)))
+          operator(^unquote(term), unquote(similarity_operator), unquote(List.first(qualifiers)))
         )
       end)
       |> apply_if(unquote(has_order) and unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
-          fragment(unquote(similarity_string), unquote(term), concat_ws(" ", unquote(qualifiers)))
+          fragment(unquote(similarity_function), unquote(term), concat_ws(unquote(qualifiers)))
         )
       end)
       |> apply_if(unquote(has_order) and not unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
-          fragment(unquote(similarity_string), unquote(term), unquote(List.first(qualifiers)))
+          fragment(unquote(similarity_function), unquote(term), unquote(List.first(qualifiers)))
         )
       end)
       |> apply_if(unquote(limit), &limit(&1, ^unquote(limit)))
@@ -342,6 +325,14 @@ defmodule Torus do
   Full text search with rank ordering. Accepts a list of columns to search in.
   Cleans the term, so it can be input directly by the user. The default preset of
   settings is optimal for most cases.
+
+  Full Text Searching (or just text search) provides the capability to identify
+  natural-language documents that satisfy a query, and optionally to sort them by
+  relevance to the query. The most common type of search is to find all documents
+  containing given query terms and return them in order of their similarity to the query.
+  Notions of query and similarity are very flexible and depend on the specific application.
+  The simplest search considers query as a set of words and similarity as the frequency of
+  query words in the document. Read more in [PostgreSQL Full Text Search docs](https://postgresql.org/docs/current/interactive/textsearch-intro.html).
 
   ## Options
     * `:language` - language used for the search. Defaults to `"english"`.
@@ -407,7 +398,7 @@ defmodule Torus do
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar", filter_type: :concat)
+      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
@@ -430,7 +421,7 @@ defmodule Torus do
       ```
   """
   defmacro full_text_dynamic(query, bindings, qualifiers, term, args \\ []) do
-    # Arguments validation
+    # Arguments fetching
     qualifiers = List.wrap(qualifiers)
     language = get_language(args)
     prefix_search = get_arg!(args, :prefix_search, true, @true_false)
@@ -438,7 +429,7 @@ defmodule Torus do
     rank_function = get_arg!(args, :rank_function, :ts_rank_cd, @rank_functions)
     filter_type = get_arg!(args, :filter_type, :or, @filter_types)
     nullable_columns = Keyword.get(args, :nullable_columns, qualifiers)
-    order = get_arg!(args, :order, :desc, @similarity_order_types)
+    order = get_arg!(args, :order, :desc, @order_types)
 
     rank_weights =
       Keyword.get_lazy(args, :rank_weights, fn ->
@@ -446,61 +437,87 @@ defmodule Torus do
         [:A, :B, :C, :D] ++ List.duplicate(:D, exceeding_size)
       end)
 
-    if length(rank_weights) < length(qualifiers) do
-      raise """
-      The length of `rank_weights` should be the same as the length of the qualifiers.
-      """
-    end
-
-    if not Enum.all?(rank_weights, &(to_string(&1) in @supported_weights)) do
-      raise """
-      Each rank weight from `rank_weights` should be one of the: #{@supported_weights}
-      """
-    end
-
     rank_normalization =
       Keyword.get_lazy(args, :rank_normalization, fn ->
         if rank_function == :ts_rank_cd, do: 4, else: 1
       end)
 
+    # Arguments validation
+    raise_if(
+      length(rank_weights) < length(qualifiers),
+      "The length of `rank_weights` should be the same as the length of the qualifiers."
+    )
+
+    raise_if(
+      not Enum.all?(rank_weights, &(to_string(&1) in @supported_weights)),
+      "Each rank weight from `rank_weights` should be one of the: #{@supported_weights}"
+    )
+
     # Arguments preparation
-    prefix_search = if prefix_search, do: "::text || ':*'", else: ""
-    desc_asc = order |> to_string() |> String.upcase()
+    prefix_string = prefix_search_string(prefix_search)
+    desc_asc = descending_ascending(order)
     has_order = order != :none
 
-    weights_prepared =
-      qualifiers
-      |> Enum.with_index()
-      |> Enum.map_join(" || ", fn {qualifier, index} ->
-        weight = Enum.fetch!(rank_weights, index)
-        coalesce = if qualifier in nullable_columns, do: "COALESCE(?, '')", else: "?"
-        "setweight(to_tsvector(#{language}, #{coalesce}), '#{weight}')"
-      end)
+    weighted_columns = prepare_weights(qualifiers, language, rank_weights, nullable_columns)
 
-    # TODO: Check if the trim is needed?
     concat_filter_string =
-      "#{weights_prepared} @@ (#{term_function}(#{language}, ?)#{prefix_search})::tsquery"
+      "#{weighted_columns} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
 
     concat_filter_fragment =
-      quote do
-        fragment(
-          unquote(concat_filter_string),
-          unquote_splicing(qualifiers),
-          ^unquote(term)
-        )
+      if prefix_search do
+        # We need to handle empty strings for prefix search queries
+        concat_filter_string = """
+        CASE
+            WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN FALSE
+            ELSE #{concat_filter_string}
+        END
+        """
+
+        quote do
+          fragment(
+            unquote(concat_filter_string),
+            ^unquote(term),
+            unquote_splicing(qualifiers),
+            ^unquote(term)
+          )
+        end
+      else
+        quote do
+          fragment(
+            unquote(concat_filter_string),
+            unquote_splicing(qualifiers),
+            ^unquote(term)
+          )
+        end
       end
 
-    order_string = """
-    #{rank_function}(#{weights_prepared}, #{term_function}(#{language}, ?), #{rank_normalization}) #{desc_asc}
-    """
+    order_string =
+      "#{rank_function}(#{weighted_columns}, (#{term_function}(#{language}, ?)#{prefix_string})::tsquery, #{rank_normalization})"
 
     order_fragment =
-      quote do
-        fragment(
-          unquote(order_string),
-          unquote_splicing(qualifiers),
-          ^unquote(term)
-        )
+      if prefix_search do
+        # We need to handle empty strings for prefix search queries
+        order_string = """
+        (CASE
+            WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN 1
+            ELSE #{order_string}
+        END) #{desc_asc}
+        """
+
+        quote do
+          fragment(
+            unquote(order_string),
+            ^unquote(term),
+            unquote_splicing(qualifiers),
+            ^unquote(term)
+          )
+        end
+      else
+        order_string = "#{order_string} #{desc_asc}"
+
+        quote do
+          fragment(unquote(order_string), unquote_splicing(qualifiers), ^unquote(term))
+        end
       end
 
     or_filter_ast =
@@ -531,38 +548,45 @@ defmodule Torus do
         end
       )
       |> apply_if(unquote(has_order), fn query ->
-        order_by(
-          query,
-          [unquote_splicing(bindings)],
-          unquote(order_fragment)
-        )
+        order_by(query, [unquote_splicing(bindings)], unquote(order_fragment))
       end)
     end
   end
 
   @doc false
   defmacro to_tsquery_dynamic(column, query_text, args \\ []) do
+    language = get_language(args)
+    prefix_search = get_arg!(args, :prefix_search, true, @true_false)
+    prefix_string = prefix_search_string(prefix_search)
     term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
-    prefix_search = if Keyword.get(args, :prefix_search, true), do: "::text || ':*'", else: ""
 
-    fragment_string =
-      """
+    ts_vector_match_string =
+      "to_tsvector(#{language}, ?) @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
+
+    if prefix_search do
+      ts_vector_match_string = """
       CASE
-          WHEN trim(#{term_function}(?, ?)::text) = '' THEN FALSE
-          ELSE to_tsvector(?, ?) @@ (#{term_function}(?, ?)#{prefix_search})::tsquery
+          WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN FALSE
+          ELSE #{ts_vector_match_string}
       END
       """
 
-    quote do
-      fragment(
-        unquote(fragment_string),
-        unquote(@default_language),
-        unquote(query_text),
-        unquote(@default_language),
-        unquote(column),
-        unquote(@default_language),
-        unquote(query_text)
-      )
+      quote do
+        fragment(
+          unquote(ts_vector_match_string),
+          unquote(query_text),
+          unquote(column),
+          unquote(query_text)
+        )
+      end
+    else
+      quote do
+        fragment(
+          unquote(ts_vector_match_string),
+          unquote(column),
+          unquote(query_text)
+        )
+      end
     end
   end
 
@@ -598,6 +622,8 @@ defmodule Torus do
 
   # Private helpers
 
+  # Macros
+
   @doc false
   defmacro operator(a, operator, b) do
     quote do
@@ -610,16 +636,7 @@ defmodule Torus do
   end
 
   @doc false
-  def apply_if(query, condition, query_fun) do
-    if condition, do: query_fun.(query), else: query
-  end
-
-  def apply_case(query, case_condition, query_fun) do
-    query_fun.(case_condition, query)
-  end
-
-  @doc false
-  defmacro concat_ws(separator, qualifiers) do
+  defmacro concat_ws(separator \\ " ", qualifiers) do
     fragment_string = "concat_ws(?" <> String.duplicate(", ?", length(qualifiers)) <> ")"
 
     quote do
@@ -631,6 +648,40 @@ defmodule Torus do
     end
   end
 
+  # Functions
+
+  @doc false
+  def apply_if(query, condition, query_fun) do
+    if condition, do: query_fun.(query), else: query
+  end
+
+  @doc false
+  def apply_case(query, case_condition, query_fun) do
+    query_fun.(case_condition, query)
+  end
+
+  defp prefix_search_string(prefix_search) when is_boolean(prefix_search) do
+    if prefix_search, do: "::text || ':*'", else: ""
+  end
+
+  defp descending_ascending(order) when order in @order_types do
+    order |> to_string() |> String.upcase()
+  end
+
+  defp prepare_weights(qualifiers, language, rank_weights, nullable_columns) do
+    qualifiers
+    |> Enum.with_index()
+    |> Enum.map_join(" || ", fn {qualifier, index} ->
+      weight = Enum.fetch!(rank_weights, index)
+      coalesce = if qualifier in nullable_columns, do: "COALESCE(?, '')", else: "?"
+      "setweight(to_tsvector(#{language}, #{coalesce}), '#{weight}')"
+    end)
+  end
+
+  defp raise_if(condition, message) do
+    if condition, do: raise(message)
+  end
+
   defp get_language(args) do
     args |> Keyword.get(:language, @default_language) |> then(&("'" <> &1 <> "'"))
   end
@@ -638,11 +689,10 @@ defmodule Torus do
   defp get_arg!(args, value_key, value_default, supported_values) do
     value = Keyword.get(args, value_key, value_default)
 
-    if value not in supported_values do
-      raise """
-      The value of `#{value_key}` should be one of the: #{supported_values}
-      """
-    end
+    raise_if(
+      value not in supported_values,
+      "The value of `#{value_key}` should be one of the: #{inspect(supported_values)}"
+    )
 
     value
   end

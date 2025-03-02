@@ -22,4 +22,8 @@ torus-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+# VSCode configs
 .elixir_ls/
+
+# asdf version files
+.tool-versions
