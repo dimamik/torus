@@ -6,11 +6,38 @@ defmodule TorusTest do
   describe "substring/3" do
     test "correctly extracts substring" do
       insert_post!(title: "foobar")
+      string = "%#\"o_b#\"%"
 
       assert "oob" =
                Post
-               |> select([p], substring(p.title, "%#\"o_b#\"%", "#"))
+               |> select([p], substring(p.title, string, "#"))
                |> Repo.one!()
+    end
+  end
+
+  describe "ilike/5" do
+    test "correctly pins the term" do
+      insert_post!(title: "pinnedThingy")
+      term = "PiNnEd%"
+
+      assert ["pinnedThingy"] =
+               Post
+               |> Torus.ilike([p], p.title, term)
+               |> select([p], p.title)
+               |> Repo.all()
+    end
+  end
+
+  describe "like/5" do
+    test "correctly pins the term" do
+      insert_post!(title: "pinned_thingy")
+      term = "pinned%"
+
+      assert ["pinned_thingy"] =
+               Post
+               |> Torus.like([p], p.title, term)
+               |> select([p], p.title)
+               |> Repo.all()
     end
   end
 end

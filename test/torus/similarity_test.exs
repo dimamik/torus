@@ -199,4 +199,20 @@ defmodule Torus.SimilarityTest do
                |> Repo.all()
     end
   end
+
+  describe "similarity/5 - variable terms" do
+    test "correctly pins variable terms" do
+      insert_post!(title: nil, body: "foo")
+      insert_post!(title: "foo", body: nil)
+      insert_post!(title: nil, body: nil)
+
+      term = "foo"
+
+      assert [nil, "foo", nil] =
+               Post
+               |> Torus.similarity([p], [p.title, p.body], term)
+               |> select([p], p.title)
+               |> Repo.all()
+    end
+  end
 end

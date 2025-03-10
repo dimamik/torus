@@ -298,14 +298,14 @@ defmodule Torus do
         order_by(
           query,
           [unquote_splicing(bindings)],
-          fragment(unquote(similarity_function), unquote(term), concat_ws(unquote(qualifiers)))
+          fragment(unquote(similarity_function), ^unquote(term), concat_ws(unquote(qualifiers)))
         )
       end)
       |> apply_if(unquote(has_order) and not unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
-          fragment(unquote(similarity_function), unquote(term), unquote(List.first(qualifiers)))
+          fragment(unquote(similarity_function), ^unquote(term), unquote(List.first(qualifiers)))
         )
       end)
       |> apply_if(unquote(limit), &limit(&1, ^unquote(limit)))
@@ -614,8 +614,8 @@ defmodule Torus do
       fragment(
         "substring(? similar ? escape ?)",
         unquote(string),
-        unquote(pattern),
-        unquote(escape_character)
+        ^unquote(pattern),
+        ^unquote(escape_character)
       )
     end
   end
