@@ -17,9 +17,9 @@ defmodule Torus.Case do
     quote do
       import Ecto.Query
       import Torus
-      import Torus.QueryInspector
+      import Torus.TestHelpers
 
-      alias Torus.QueryInspector
+      alias Torus.TestHelpers, as: QueryInspector
       alias Torus.Test.Repo
       alias TorusTest.Author
       alias TorusTest.Post

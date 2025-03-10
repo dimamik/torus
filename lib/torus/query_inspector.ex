@@ -9,7 +9,7 @@ defmodule Torus.QueryInspector do
   Converts the query to SQL and prints it to the console. Returns the query.
   """
   @spec tap_sql(Ecto.Query.t(), Ecto.Repo, :all | :update_all | :delete_all) :: Ecto.Query.t()
-  def tap_sql(query, repo \\ Torus.Test.Repo, kind \\ :all) do
+  def tap_sql(query, repo, kind \\ :all) do
     kind
     |> Ecto.Adapters.SQL.to_sql(repo, query)
     |> IO.puts()
@@ -24,7 +24,7 @@ defmodule Torus.QueryInspector do
   """
   @spec tap_explain_analyze(Ecto.Query.t(), Ecto.Repo, :all | :update_all | :delete_all) ::
           Ecto.Query.t()
-  def tap_explain_analyze(query, repo \\ Torus.Test.Repo, kind \\ :all) do
+  def tap_explain_analyze(query, repo, kind \\ :all) do
     tap(query, &(Ecto.Adapters.SQL.explain(repo, kind, &1, :analyze) |> IO.puts()))
   end
 
@@ -32,7 +32,7 @@ defmodule Torus.QueryInspector do
   Substitutes the parameters in the query and prints the SQL to the console. Returns the query.
   The SQL is in its raw form and can be directly executed by postgres.
   """
-  def tap_substituted_sql(query, repo \\ Torus.Test.Repo, kind \\ :all) do
+  def tap_substituted_sql(query, repo, kind \\ :all) do
     query
     |> substituted_sql(repo, kind)
     |> IO.puts()
@@ -40,7 +40,7 @@ defmodule Torus.QueryInspector do
     query
   end
 
-  def substituted_sql(query, repo \\ Torus.Test.Repo, kind \\ :all) do
+  def substituted_sql(query, repo, kind \\ :all) do
     {raw_log, params} = Ecto.Adapters.SQL.to_sql(kind, repo, query)
 
     params
