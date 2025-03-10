@@ -386,11 +386,12 @@ defmodule Torus do
       - `:concat` - joins the columns into a single tsvector and searches for the
       term in the concatenated string containing all columns.
       - `:none` - doesn't apply any filtering and returns all results.
-    * `:nullable_columns` - a list of columns which values can take `null`s, so that
-    they can be escaped during the search. Defaults to all qualifiers. When passed -
-    speeds up the search. For example `[p.title, a.first_name]` would mean that only
-    `p.title` and `a.first_name` columns can take `null`s, whereas other columns are
-    guaranteed by the caller to be non-nullable.
+    * `:concat`
+      - `true` (default) - when joining columns via `:concat` option, adds a
+      `COALESCE` function to handle NULL values. Choose this when you can't guarantee
+      that all columns are non-null.
+      - `false` - doesn't add `COALESCE` function to the query. Choose this when you're
+      using `filter_type: :concat` and can guarantee that all columns are non-null.
 
   ## Example usage
 
@@ -409,9 +410,6 @@ defmodule Torus do
     `full_text_stored/5`. See more on how to add an index and how to store a column in
     the `full_text_stored/5` docs. If that's not feasible, read on.
 
-    - Pass implicitly `nullable_columns` so that we're leveraging existing non-coalesce
-    GIN indexes (if present) and are not doing unneeded work.
-
     - Add a GIN ts_vector index on the column(s) you search in.
     Use `Torus.QueryInspector.tap_sql/2` on your query (with all the options passed) to see the exact search string and add an index to it. For example for nullable title, the GIN index could look like:
 
@@ -428,7 +426,6 @@ defmodule Torus do
     term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
     rank_function = get_arg!(args, :rank_function, :ts_rank_cd, @rank_functions)
     filter_type = get_arg!(args, :filter_type, :or, @filter_types)
-    nullable_columns = Keyword.get(args, :nullable_columns, qualifiers)
     order = get_arg!(args, :order, :desc, @order_types)
 
     rank_weights =
@@ -441,6 +438,9 @@ defmodule Torus do
       Keyword.get_lazy(args, :rank_normalization, fn ->
         if rank_function == :ts_rank_cd, do: 4, else: 1
       end)
+
+    coalesce = Keyword.get(args, :concat, filter_type == :concat and length(qualifiers) > 1)
+    coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
 
     # Arguments validation
     raise_if(
@@ -457,8 +457,7 @@ defmodule Torus do
     prefix_string = prefix_search_string(prefix_search)
     desc_asc = descending_ascending(order)
     has_order = order != :none
-
-    weighted_columns = prepare_weights(qualifiers, language, rank_weights, nullable_columns)
+    weighted_columns = prepare_weights(qualifiers, language, rank_weights, coalesce)
 
     concat_filter_string =
       "#{weighted_columns} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
@@ -668,12 +667,12 @@ defmodule Torus do
     order |> to_string() |> String.upcase()
   end
 
-  defp prepare_weights(qualifiers, language, rank_weights, nullable_columns) do
+  defp prepare_weights(qualifiers, language, rank_weights, coalesce) do
     qualifiers
     |> Enum.with_index()
-    |> Enum.map_join(" || ", fn {qualifier, index} ->
+    |> Enum.map_join(" || ", fn {_qualifier, index} ->
       weight = Enum.fetch!(rank_weights, index)
-      coalesce = if qualifier in nullable_columns, do: "COALESCE(?, '')", else: "?"
+      coalesce = if coalesce, do: "COALESCE(?, '')", else: "?"
       "setweight(to_tsvector(#{language}, #{coalesce}), '#{weight}')"
     end)
   end
