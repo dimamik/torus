@@ -386,7 +386,7 @@ defmodule Torus do
       - `:concat` - joins the columns into a single tsvector and searches for the
       term in the concatenated string containing all columns.
       - `:none` - doesn't apply any filtering and returns all results.
-    * `:concat`
+    * `:coalesce`
       - `true` (default) - when joining columns via `:concat` option, adds a
       `COALESCE` function to handle NULL values. Choose this when you can't guarantee
       that all columns are non-null.
@@ -439,7 +439,7 @@ defmodule Torus do
         if rank_function == :ts_rank_cd, do: 4, else: 1
       end)
 
-    coalesce = Keyword.get(args, :concat, filter_type == :concat and length(qualifiers) > 1)
+    coalesce = Keyword.get(args, :coalesce, filter_type == :concat and length(qualifiers) > 1)
     coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
 
     # Arguments validation
