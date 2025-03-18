@@ -124,25 +124,6 @@ defmodule Torus.SimilarityTest do
     end
   end
 
-  describe "similarity/5 - limit" do
-    test ":limit" do
-      insert_post!(title: "foobar")
-      insert_post!(title: "foo")
-
-      assert "foo" =
-               Post
-               |> Torus.similarity([p], p.title, "foo", limit: 1)
-               |> select([p], p.title)
-               |> Repo.one!()
-
-      assert "SELECT p0.\"title\" FROM \"posts\" AS p0 ORDER BY similarity('foo', p0.\"title\") DESC LIMIT '1'" =
-               Post
-               |> Torus.similarity([p], p.title, "foo", limit: 1)
-               |> select([p], p.title)
-               |> QueryInspector.substituted_sql()
-    end
-  end
-
   describe "similarity/5 - pre_filter" do
     test ":pre_filter - defaults to `false`" do
       assert "SELECT p0.\"title\" FROM \"posts\" AS p0 ORDER BY similarity('foo', p0.\"title\") DESC" =

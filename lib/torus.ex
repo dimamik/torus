@@ -16,9 +16,10 @@ defmodule Torus do
   Case-insensitive pattern matching search using
   [PostgreSQL `ILIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
-  **Doesn't clean the term, so it needs to be sanitized before being passed in. See
-  [LIKE-injections](https://githubengineering.com/like-injection/).**
-
+  > #### Warning {: .neutral}
+  >
+  > Doesn't clean the term, so it needs to be sanitized before being passed in. See
+  [LIKE-injections](https://githubengineering.com/like-injection/).
 
   ## Examples
 
@@ -69,8 +70,10 @@ defmodule Torus do
   @doc """
   Case-sensitive pattern matching search using [PostgreSQL `LIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
-  **Doesn't clean the term, so it needs to be sanitized before being passed in, see
-  [LIKE-injections](https://githubengineering.com/like-injection/)**
+  > #### Warning {: .neutral}
+  >
+  > Doesn't clean the term, so it needs to be sanitized before being passed in. See
+  [LIKE-injections](https://githubengineering.com/like-injection/).
 
   ## Examples
 
@@ -186,7 +189,9 @@ defmodule Torus do
   @doc """
   Case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
 
-  **You need to have pg_trgm extension installed.**
+  > #### Warning {: .neutral}
+  >
+  > You need to have pg_trgm extension installed.
 
   ## Options
 
@@ -202,13 +207,11 @@ defmodule Torus do
       - `:desc` (default) - orders the results by similarity rank in descending order.
       - `:asc` - orders the results by similarity rank in ascending order.
       - `:none` - doesn't apply ordering and returns
-    * `:limit` - limits the number of results returned (PostgreSQL `LIMIT`). By
-    default limit is not applied and the results are above
-    `pg_trgm.similarity_threshold`, which defaults to 0.3.
     * `:pre_filter` - whether or not to pre-filter the results:
       - `false` (default) - omits pre-filtering and returns all results.
       - `true` -  before applying the order, pre filters (using boolean
-    operators which potentially use GIN indexes) the result set.
+    operators which potentially use GIN indexes) the result set. The results above
+    `pg_trgm.similarity_threshold` (which defaults to 0.3) are returned.
 
   ## Examples
 
@@ -216,7 +219,8 @@ defmodule Torus do
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.similarity([p], [p.title, p.body], "Diagon Bombshell", limit: 1)
+      ...> |> Torus.similarity([p], [p.title, p.body], "Diagon Bombshell")
+      ...> |> limit(1)
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
@@ -234,13 +238,13 @@ defmodule Torus do
   This would significantly reduce the number of rows to order. The pre-filtering
   phase uses different (boolean) similarity operators which more actively leverage
   GIN indexes.
-  - Use `limit` to limit the number of results returned.
+  - Limit the number of raws returned using `limit`.
   - Use `order: :none` argument if you don't care about the order of the results.
   The query will return all results that are above the similarity threshold, which
   you can set globally via `SET pg_trgm.similarity_threshold = 0.3;`.
   - When `order: :desc` (default) and the limit is not set, the query will do a full
   table scan, so it's recommended to manually limit the results (by applying `where`
-  clauses to limit the rows as much as possible).
+  or `limit` clauses to filter the rows as much as possible).
 
   ### Adding an index
 
@@ -252,17 +256,10 @@ defmodule Torus do
   """
   defmacro similarity(query, bindings, qualifiers, term, opts \\ []) do
     # Arguments fetching
-    limit = Keyword.get(opts, :limit)
     order = get_arg!(opts, :order, :desc, @order_types)
     pre_filter = get_arg!(opts, :pre_filter, false, @true_false)
     qualifiers = List.wrap(qualifiers)
     similarity_type = get_arg!(opts, :type, :full, @similarity_types)
-
-    # Arguments validation
-    raise_if(
-      not is_nil(limit) and not is_integer(limit),
-      "`:limit` should be an integer. Got: #{inspect(limit)}"
-    )
 
     # Arguments preparation
     {similarity_function, similarity_operator} =
@@ -308,7 +305,6 @@ defmodule Torus do
           fragment(unquote(similarity_function), ^unquote(term), unquote(List.first(qualifiers)))
         )
       end)
-      |> apply_if(unquote(limit), &limit(&1, ^unquote(limit)))
     end
   end
 
@@ -616,7 +612,6 @@ defmodule Torus do
   ["123"]
   ```
   """
-  # TODO: Fix the doctest. For now this test is duped in the test file.
   defmacro substring(string, pattern, escape_character) do
     quote do
       fragment(

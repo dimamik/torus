@@ -51,7 +51,8 @@ See `full_text/5` for more details.
    ```elixir
    iex> insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
    ...> Post
-   ...> |> Torus.similarity([p], [p.title], "hoggwarrds", limit: 2)
+   ...> |> Torus.similarity([p], [p.title], "hoggwarrds")
+   ...> |> limit(2)
    ...> |> select([p], p.title)
    ...> |> Repo.all()
    ["Hogwarts Secrets", "Hogwart’s Secret"]
