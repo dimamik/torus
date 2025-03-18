@@ -25,11 +25,11 @@ Then, in any query, you can (for example) add a full-text search:
 
 ```elixir
 Post
-|> Torus.full_text_dynamic([p], [p.title, p.body], "uncovered hogwarts")
+|> Torus.full_text([p], [p.title, p.body], "uncovered hogwarts")
 |> Repo.all()
 ```
 
-See `full_text_dynamic/5` for more details.
+See `full_text/5` for more details.
 
 ## 6 types of search:
 
@@ -51,7 +51,8 @@ See `full_text_dynamic/5` for more details.
    ```elixir
    iex> insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
    ...> Post
-   ...> |> Torus.similarity([p], [p.title], "hoggwarrds", limit: 2)
+   ...> |> Torus.similarity([p], [p.title], "hoggwarrds")
+   ...> |> limit(2)
    ...> |> select([p], p.title)
    ...> |> Repo.all()
    ["Hogwarts Secrets", "Hogwart’s Secret"]
@@ -66,13 +67,13 @@ See `full_text_dynamic/5` for more details.
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
+      ...> |> Torus.full_text([p], [p.title, p.body], "uncov hogwar")
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
    ```
 
-   See `full_text_dynamic/5` for more details.
+   See `full_text/5` for more details.
 
 1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content, often utilizing natural language processing.
    [Semantic Search with PostgreSQL and OpenAI Embeddings](https://towardsdatascience.com/semantic-search-with-postgresql-and-openai-embeddings-4d327236f41f)
@@ -98,8 +99,7 @@ Torus offers a few helpers to debug, explain, and analyze your queries before us
 ## Future plans
 
 - [ ] Implement more search types and functions from PostgreSQL docs, provide examples and docs for them
-- [ ] Make `full_text_dynamic/5` more extensible by splitting it to building blocks and defining more arguments. Leave the default (without args) version fit for most cases.
-- [ ] Add `full_text_stored/5` for full-text search on stored vector columns
+- [ ] Make `full_text/5` more extensible by splitting it to building blocks and defining more arguments. Leave the default (without args) version fit for most cases.
 - [ ] Add support for highlighting search results. (Base off of a `ts_headline` function)
 - [ ] Create a clean API for semantic search, make it easy to abstract embedding creation and storage
 

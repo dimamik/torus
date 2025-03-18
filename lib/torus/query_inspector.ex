@@ -5,10 +5,12 @@ defmodule Torus.QueryInspector do
   explain analyze returns more accurate results.
   """
 
+  alias Ecto.{Repo, Query}
+
   @doc """
   Converts the query to SQL and prints it to the console. Returns the query.
   """
-  @spec tap_sql(Ecto.Query.t(), Ecto.Repo, :all | :update_all | :delete_all) :: Ecto.Query.t()
+  @spec tap_sql(Query.t(), Repo.t(), :all | :update_all | :delete_all) :: Query.t()
   def tap_sql(query, repo, kind \\ :all) do
     kind
     |> Ecto.Adapters.SQL.to_sql(repo, query)
@@ -22,8 +24,8 @@ defmodule Torus.QueryInspector do
 
   **Runs the query!**
   """
-  @spec tap_explain_analyze(Ecto.Query.t(), Ecto.Repo, :all | :update_all | :delete_all) ::
-          Ecto.Query.t()
+  @spec tap_explain_analyze(Query.t(), Repo.t(), :all | :update_all | :delete_all) ::
+          Query.t()
   def tap_explain_analyze(query, repo, kind \\ :all) do
     tap(query, &(Ecto.Adapters.SQL.explain(repo, kind, &1, :analyze) |> IO.puts()))
   end
@@ -40,6 +42,16 @@ defmodule Torus.QueryInspector do
     query
   end
 
+  @doc """
+  Substitutes the params into the SQL.
+
+  ## Examples
+
+      iex> Post |> where(id: 1) |> Torus.QueryInspector.substituted_sql(Torus.Test.Repo)
+      "SELECT p0.\"id\", p0.\"title\", p0.\"body\", p0.\"author_id\" FROM \"posts\" AS p0 WHERE (p0.\"id\" = 1)"
+  """
+  @spec substituted_sql(Query.t(), Repo.t(), :all | :update_all | :delete_all) ::
+          String.t()
   def substituted_sql(query, repo, kind \\ :all) do
     {raw_log, params} = Ecto.Adapters.SQL.to_sql(kind, repo, query)
 

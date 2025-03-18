@@ -16,9 +16,10 @@ defmodule Torus do
   Case-insensitive pattern matching search using
   [PostgreSQL `ILIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
-  **Doesn't clean the term, so it needs to be sanitized before being passed in. See
-  [LIKE-injections](https://githubengineering.com/like-injection/).**
-
+  > #### Warning {: .neutral}
+  >
+  > Doesn't clean the term, so it needs to be sanitized before being passed in. See
+  [LIKE-injections](https://githubengineering.com/like-injection/).
 
   ## Examples
 
@@ -48,7 +49,7 @@ defmodule Torus do
 
   See `like/5` optimization section for more details.
   """
-  defmacro ilike(query, bindings, qualifiers, term, _args \\ []) do
+  defmacro ilike(query, bindings, qualifiers, term, _opts \\ []) do
     qualifiers = List.wrap(qualifiers)
 
     where_ast =
@@ -69,8 +70,10 @@ defmodule Torus do
   @doc """
   Case-sensitive pattern matching search using [PostgreSQL `LIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
-  **Doesn't clean the term, so it needs to be sanitized before being passed in, see
-  [LIKE-injections](https://githubengineering.com/like-injection/)**
+  > #### Warning {: .neutral}
+  >
+  > Doesn't clean the term, so it needs to be sanitized before being passed in. See
+  [LIKE-injections](https://githubengineering.com/like-injection/).
 
   ## Examples
 
@@ -115,10 +118,10 @@ defmodule Torus do
       Torus.like([p], [p.title_lower], "hogwarts%")
       ```
 
-  - Use full-text search for large text fields, see `full_text_dynamic/5` for more
+  - Use full-text search for large text fields, see `full_text/5` for more
   details.
   """
-  defmacro like(query, binding, qualifiers, term, _args \\ []) do
+  defmacro like(query, binding, qualifiers, term, _opts \\ []) do
     qualifiers = List.wrap(qualifiers)
 
     where_ast =
@@ -158,7 +161,7 @@ defmodule Torus do
   - Filter and limit the result set as much as possible before calling `similar_to/5`
   """
   # TODO: Adjust the description when POSIX regex is added
-  defmacro similar_to(query, bindings, qualifiers, term, _args \\ []) do
+  defmacro similar_to(query, bindings, qualifiers, term, _opts \\ []) do
     qualifiers = List.wrap(qualifiers)
 
     where_ast =
@@ -186,7 +189,9 @@ defmodule Torus do
   @doc """
   Case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
 
-  **You need to have pg_trgm extension installed.**
+  > #### Warning {: .neutral}
+  >
+  > You need to have pg_trgm extension installed.
 
   ## Options
 
@@ -202,13 +207,11 @@ defmodule Torus do
       - `:desc` (default) - orders the results by similarity rank in descending order.
       - `:asc` - orders the results by similarity rank in ascending order.
       - `:none` - doesn't apply ordering and returns
-    * `:limit` - limits the number of results returned (PostgreSQL `LIMIT`). By
-    default limit is not applied and the results are above
-    `pg_trgm.similarity_threshold`, which defaults to 0.3.
     * `:pre_filter` - whether or not to pre-filter the results:
       - `false` (default) - omits pre-filtering and returns all results.
       - `true` -  before applying the order, pre filters (using boolean
-    operators which potentially use GIN indexes) the result set.
+    operators which potentially use GIN indexes) the result set. The results above
+    `pg_trgm.similarity_threshold` (which defaults to 0.3) are returned.
 
   ## Examples
 
@@ -216,7 +219,8 @@ defmodule Torus do
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.similarity([p], [p.title, p.body], "Diagon Bombshell", limit: 1)
+      ...> |> Torus.similarity([p], [p.title, p.body], "Diagon Bombshell")
+      ...> |> limit(1)
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
@@ -234,13 +238,13 @@ defmodule Torus do
   This would significantly reduce the number of rows to order. The pre-filtering
   phase uses different (boolean) similarity operators which more actively leverage
   GIN indexes.
-  - Use `limit` to limit the number of results returned.
+  - Limit the number of raws returned using `limit`.
   - Use `order: :none` argument if you don't care about the order of the results.
   The query will return all results that are above the similarity threshold, which
   you can set globally via `SET pg_trgm.similarity_threshold = 0.3;`.
   - When `order: :desc` (default) and the limit is not set, the query will do a full
   table scan, so it's recommended to manually limit the results (by applying `where`
-  clauses to limit the rows as much as possible).
+  or `limit` clauses to filter the rows as much as possible).
 
   ### Adding an index
 
@@ -250,19 +254,12 @@ defmodule Torus do
   CREATE INDEX index_posts_on_title ON posts USING GIN (title gin_trgm_ops);
   ```
   """
-  defmacro similarity(query, bindings, qualifiers, term, args \\ []) do
+  defmacro similarity(query, bindings, qualifiers, term, opts \\ []) do
     # Arguments fetching
-    limit = Keyword.get(args, :limit)
-    order = get_arg!(args, :order, :desc, @order_types)
-    pre_filter = get_arg!(args, :pre_filter, false, @true_false)
+    order = get_arg!(opts, :order, :desc, @order_types)
+    pre_filter = get_arg!(opts, :pre_filter, false, @true_false)
     qualifiers = List.wrap(qualifiers)
-    similarity_type = get_arg!(args, :type, :full, @similarity_types)
-
-    # Arguments validation
-    raise_if(
-      not is_nil(limit) and not is_integer(limit),
-      "`:limit` should be an integer. Got: #{inspect(limit)}"
-    )
+    similarity_type = get_arg!(opts, :type, :full, @similarity_types)
 
     # Arguments preparation
     {similarity_function, similarity_operator} =
@@ -308,7 +305,6 @@ defmodule Torus do
           fragment(unquote(similarity_function), ^unquote(term), unquote(List.first(qualifiers)))
         )
       end)
-      |> apply_if(unquote(limit), &limit(&1, ^unquote(limit)))
     end
   end
 
@@ -322,7 +318,10 @@ defmodule Torus do
   @filter_types ~w[or concat none]a
 
   @doc """
-  Full text search with rank ordering. Accepts a list of columns to search in.
+  Full text search with rank ordering. Accepts a list of columns to search in. A list of columns
+  can either be a text or `tsvector` type. If `tsvector`s are passed make sure to set
+  `stored: true`.
+
   Cleans the term, so it can be input directly by the user. The default preset of
   settings is optimal for most cases.
 
@@ -339,6 +338,9 @@ defmodule Torus do
     * `:prefix_search` - whether to apply prefix search.
       - `true` (default) - the term is treated as a prefix
       - `false` - only counts full-word matches
+    * `:stored`
+      - `false` (default) - columns (or expressions) passed as qualifiers are of type `text`
+      - `true` - columns (or expressions) passed as qualifiers are **tsvectors**
     * `:term_function` - function used to convert the term to `ts_query`. Can be one of:
       - `:websearch_to_tsquery` (default) - converts term to a tsquery, normalizing
       words according to the specified or default configuration. Quoted word sequences
@@ -399,7 +401,7 @@ defmodule Torus do
       ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
       ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
       ...>  Post
-      ...> |> Torus.full_text_dynamic([p], [p.title, p.body], "uncov hogwar")
+      ...> |> Torus.full_text([p], [p.title, p.body], "uncov hogwar")
       ...> |> select([p], p.title)
       ...> |> Repo.all()
       ["Diagon Bombshell"]
@@ -407,10 +409,9 @@ defmodule Torus do
   ## Optimizations
 
     - Store precomputed tsvector in a separate column, add a GIN index to it, and use
-    `full_text_stored/5`. See more on how to add an index and how to store a column in
-    the `full_text_stored/5` docs. If that's not feasible, read on.
+    `stored: true`.
 
-    - Add a GIN ts_vector index on the column(s) you search in.
+    - Add a GIN tsvector index on the column(s) you search in.
     Use `Torus.QueryInspector.tap_sql/2` on your query (with all the options passed) to see the exact search string and add an index to it. For example for nullable title, the GIN index could look like:
 
       ```sql
@@ -418,28 +419,29 @@ defmodule Torus do
       ON posts USING GIN (to_tsvector('english', COALESCE(title, '')));
       ```
   """
-  defmacro full_text_dynamic(query, bindings, qualifiers, term, args \\ []) do
+  defmacro full_text(query, bindings, qualifiers, term, opts \\ []) do
     # Arguments fetching
     qualifiers = List.wrap(qualifiers)
-    language = get_language(args)
-    prefix_search = get_arg!(args, :prefix_search, true, @true_false)
-    term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
-    rank_function = get_arg!(args, :rank_function, :ts_rank_cd, @rank_functions)
-    filter_type = get_arg!(args, :filter_type, :or, @filter_types)
-    order = get_arg!(args, :order, :desc, @order_types)
+    language = get_language(opts)
+    prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
+    stored = get_arg!(opts, :stored, false, @true_false)
+    term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
+    rank_function = get_arg!(opts, :rank_function, :ts_rank_cd, @rank_functions)
+    filter_type = get_arg!(opts, :filter_type, :or, @filter_types)
+    order = get_arg!(opts, :order, :desc, @order_types)
 
     rank_weights =
-      Keyword.get_lazy(args, :rank_weights, fn ->
+      Keyword.get_lazy(opts, :rank_weights, fn ->
         exceeding_size = max(length(qualifiers) - 4, 0)
         [:A, :B, :C, :D] ++ List.duplicate(:D, exceeding_size)
       end)
 
     rank_normalization =
-      Keyword.get_lazy(args, :rank_normalization, fn ->
+      Keyword.get_lazy(opts, :rank_normalization, fn ->
         if rank_function == :ts_rank_cd, do: 4, else: 1
       end)
 
-    coalesce = Keyword.get(args, :coalesce, filter_type == :concat and length(qualifiers) > 1)
+    coalesce = Keyword.get(opts, :coalesce, filter_type == :concat and length(qualifiers) > 1)
     coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
 
     # Arguments validation
@@ -457,7 +459,8 @@ defmodule Torus do
     prefix_string = prefix_search_string(prefix_search)
     desc_asc = descending_ascending(order)
     has_order = order != :none
-    weighted_columns = prepare_weights(qualifiers, language, rank_weights, coalesce)
+
+    weighted_columns = prepare_weights(qualifiers, stored, language, rank_weights, coalesce)
 
     concat_filter_string =
       "#{weighted_columns} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
@@ -524,7 +527,7 @@ defmodule Torus do
         quote do
           dynamic(
             [unquote_splicing(bindings)],
-            to_tsquery_dynamic(unquote(qualifier), ^unquote(term), unquote(args)) or
+            to_tsquery(unquote(qualifier), ^unquote(term), unquote(opts)) or
               ^unquote(conditions_acc)
           )
         end
@@ -553,14 +556,16 @@ defmodule Torus do
   end
 
   @doc false
-  defmacro to_tsquery_dynamic(column, query_text, args \\ []) do
-    language = get_language(args)
-    prefix_search = get_arg!(args, :prefix_search, true, @true_false)
+  defmacro to_tsquery(column, query_text, opts \\ []) do
+    language = get_language(opts)
+    prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
+    stored = get_arg!(opts, :stored, false, @true_false)
     prefix_string = prefix_search_string(prefix_search)
-    term_function = get_arg!(args, :term_function, :websearch_to_tsquery, @term_functions)
+    term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
+    vector = if stored, do: "?", else: "to_tsvector(#{language}, ?)"
 
     ts_vector_match_string =
-      "to_tsvector(#{language}, ?) @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
+      "#{vector} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
 
     if prefix_search do
       ts_vector_match_string = """
@@ -607,7 +612,6 @@ defmodule Torus do
   ["123"]
   ```
   """
-  # TODO: Fix the doctest. For now this test is duped in the test file.
   defmacro substring(string, pattern, escape_character) do
     quote do
       fragment(
@@ -667,7 +671,7 @@ defmodule Torus do
     order |> to_string() |> String.upcase()
   end
 
-  defp prepare_weights(qualifiers, language, rank_weights, coalesce) do
+  defp prepare_weights(qualifiers, false, language, rank_weights, coalesce) do
     qualifiers
     |> Enum.with_index()
     |> Enum.map_join(" || ", fn {_qualifier, index} ->
@@ -677,16 +681,26 @@ defmodule Torus do
     end)
   end
 
+  defp prepare_weights(qualifiers, true, _language, rank_weights, coalesce) do
+    qualifiers
+    |> Enum.with_index()
+    |> Enum.map_join(" || ", fn {_qualifier, index} ->
+      weight = Enum.fetch!(rank_weights, index)
+      coalesce = if coalesce, do: "COALESCE(?, '')", else: "?"
+      "setweight(#{coalesce}, '#{weight}')"
+    end)
+  end
+
   defp raise_if(condition, message) do
     if condition, do: raise(message)
   end
 
-  defp get_language(args) do
-    args |> Keyword.get(:language, @default_language) |> then(&("'" <> &1 <> "'"))
+  defp get_language(opts) do
+    opts |> Keyword.get(:language, @default_language) |> then(&("'" <> &1 <> "'"))
   end
 
-  defp get_arg!(args, value_key, value_default, supported_values) do
-    value = Keyword.get(args, value_key, value_default)
+  defp get_arg!(opts, value_key, value_default, supported_values) do
+    value = Keyword.get(opts, value_key, value_default)
 
     raise_if(
       value not in supported_values,
