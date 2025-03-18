@@ -63,6 +63,10 @@ defmodule Torus.QueryInspector do
     end)
   end
 
+  defp to_postgres_string(list) when is_list(list) do
+    "ARRAY[#{Enum.map_join(list, ",", &to_postgres_string/1)}]"
+  end
+
   defp to_postgres_string(string) do
     "'#{string}'"
   end
