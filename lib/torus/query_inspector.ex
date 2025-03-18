@@ -33,6 +33,13 @@ defmodule Torus.QueryInspector do
   @doc """
   Substitutes the parameters in the query and prints the SQL to the console. Returns the query.
   The SQL is in its raw form and can be directly executed by postgres.
+
+  ## Example
+      iex> Post
+      ...> |> where(id: 1)
+      ...> # ... Your complex query
+      ...> |> Torus.QueryInspector.tap_substituted_sql(Torus.Test.Repo)
+      ...> |> Repo.all()
   """
   def tap_substituted_sql(query, repo, kind \\ :all) do
     query

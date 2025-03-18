@@ -40,4 +40,16 @@ defmodule TorusTest do
                |> Repo.all()
     end
   end
+
+  describe "keywords queries" do
+    # Other functions would work the same
+    test "like/5" do
+      insert_post!(title: "pinned_thingy")
+
+      assert ["pinned_thingy"] =
+               from(p in Post, select: p.title)
+               |> Torus.like([p], p.title, "pinned%")
+               |> Repo.all()
+    end
+  end
 end

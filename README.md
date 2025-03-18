@@ -24,7 +24,11 @@ end
 Then, in any query, you can (for example) add a full-text search:
 
 ```elixir
+import Torus
+# ...
+
 Post
+# ... your complex query
 |> Torus.full_text([p], [p.title, p.body], "uncovered hogwarts")
 |> Repo.all()
 ```
@@ -60,7 +64,7 @@ See `full_text/5` for more details.
 
    See `similarity/5` for more details.
 
-1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling efficient querying and ranking based on term frequency. - [PostgreSQL: Documentation: 17: Chapter 12. Full Text Search](https://www.postgresql.org/docs/current/textsearch.html). Is great for large datasets to quickly return relevant results.
+1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling efficient querying and ranking based on term frequency. - [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html). Is great for large datasets to quickly return relevant results.
 
    ```elixir
       iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
@@ -86,13 +90,24 @@ See `full_text/5` for more details.
 
 1. **3rd Party Engines/Providers**: Utilizes external services or software specifically designed for optimized and scalable search capabilities, such as Elasticsearch or Algolia.
 
-## Torus support
+## Optimizations and relevance
 
-For now, Torus supports pattern match, similarity, and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
+Torus is designed to be as efficient and relevant as possible from the start. But handling large datasets and complex search queries tends to be tricky. The best way to combine these two to achieve the best result is to:
+
+1. Create a query that returns as relevant results as possible (by tweaking the options of search function). If there is any option missing - feel free to open an issue/contribute back with it, or implement it manually using fragments.
+2. Test its performance on real production data - maybe it's good enough already?
+3. If it's not:
+   - See optimization sections for your search type in `Torus` docs
+   - Inspect your query using `Torus.QueryInspector.tap_substituted_sql/3` or `Torus.QueryInspector.tap_explain_analyze/3`
+   - According to the above SQL - add indexes for the queried rows/vectors
 
 ## Debugging your queries
 
 Torus offers a few helpers to debug, explain, and analyze your queries before using them on production. See `Torus.QueryInspector` for more details.
+
+## Torus support
+
+For now, Torus supports pattern match, similarity, and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
 
 <!-- MDOC -->
 

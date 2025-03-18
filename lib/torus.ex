@@ -334,13 +334,13 @@ defmodule Torus do
   query words in the document. Read more in [PostgreSQL Full Text Search docs](https://postgresql.org/docs/current/interactive/textsearch-intro.html).
 
   ## Options
-    * `:language` - language used for the search. Defaults to `"english"`.
     * `:prefix_search` - whether to apply prefix search.
       - `true` (default) - the term is treated as a prefix
       - `false` - only counts full-word matches
     * `:stored`
       - `false` (default) - columns (or expressions) passed as qualifiers are of type `text`
       - `true` - columns (or expressions) passed as qualifiers are **tsvectors**
+    * `:language` - language used for the search. Defaults to `"english"`.
     * `:term_function` - function used to convert the term to `ts_query`. Can be one of:
       - `:websearch_to_tsquery` (default) - converts term to a tsquery, normalizing
       words according to the specified or default configuration. Quoted word sequences
