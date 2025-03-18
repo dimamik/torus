@@ -319,7 +319,7 @@ defmodule Torus do
 
   @doc """
   Full text search with rank ordering. Accepts a list of columns to search in. A list of columns
-  can either be a text or ts_vector type. If ts_vectors are passed make sure to set
+  can either be a text or `tsvector` type. If `tsvector`s are passed make sure to set
   `stored: true`.
 
   Cleans the term, so it can be input directly by the user. The default preset of
@@ -340,7 +340,7 @@ defmodule Torus do
       - `false` - only counts full-word matches
     * `:stored`
       - `false` (default) - columns (or expressions) passed as qualifiers are of type `text`
-      - `true` - columns (or expressions) passed as qualifiers are **ts_vectors**
+      - `true` - columns (or expressions) passed as qualifiers are **tsvectors**
     * `:term_function` - function used to convert the term to `ts_query`. Can be one of:
       - `:websearch_to_tsquery` (default) - converts term to a tsquery, normalizing
       words according to the specified or default configuration. Quoted word sequences
@@ -411,7 +411,7 @@ defmodule Torus do
     - Store precomputed tsvector in a separate column, add a GIN index to it, and use
     `stored: true`.
 
-    - Add a GIN ts_vector index on the column(s) you search in.
+    - Add a GIN tsvector index on the column(s) you search in.
     Use `Torus.QueryInspector.tap_sql/2` on your query (with all the options passed) to see the exact search string and add an index to it. For example for nullable title, the GIN index could look like:
 
       ```sql
