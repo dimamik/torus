@@ -27,7 +27,7 @@ defmodule Torus.QueryInspector do
   @spec tap_explain_analyze(Query.t(), Repo.t(), :all | :update_all | :delete_all) ::
           Query.t()
   def tap_explain_analyze(query, repo, kind \\ :all) do
-    tap(query, &(Ecto.Adapters.SQL.explain(repo, kind, &1, :analyze) |> IO.puts()))
+    tap(query, &(Ecto.Adapters.SQL.explain(repo, kind, &1, analyze: true) |> IO.puts()))
   end
 
   @doc """
