@@ -121,14 +121,14 @@ defmodule Torus do
   - Use full-text search for large text fields, see `full_text/5` for more
   details.
   """
-  defmacro like(query, binding, qualifiers, term, _opts \\ []) do
+  defmacro like(query, bindings, qualifiers, term, _opts \\ []) do
     qualifiers = List.wrap(qualifiers)
 
     where_ast =
       Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
         quote do
           dynamic(
-            [unquote_splicing(binding)],
+            [unquote_splicing(bindings)],
             like(unquote(qualifier), ^unquote(term)) or ^unquote(conditions_acc)
           )
         end
@@ -192,6 +192,15 @@ defmodule Torus do
   > #### Warning {: .neutral}
   >
   > You need to have pg_trgm extension installed.
+  > ```elixir
+  > defmodule YourApp.Repo.Migrations.CreatePgTrgmExtension do
+  >   use Ecto.Migration
+  >
+  >   def change do
+  >     execute "CREATE EXTENSION IF NOT EXISTS pg_trgm", "DROP EXTENSION IF EXISTS pg_trgm"
+  >   end
+  > end
+  > ```
 
   ## Options
 
@@ -388,6 +397,9 @@ defmodule Torus do
       - `:concat` - joins the columns into a single tsvector and searches for the
       term in the concatenated string containing all columns.
       - `:none` - doesn't apply any filtering and returns all results.
+    * `empty_return`
+      - `true`(default) - returns all results when the search term is empty.
+      - `false` - returns an empty list when the search term is empty.
     * `:coalesce`
       - `true` (default) - when joining columns via `:concat` option, adds a
       `COALESCE` function to handle NULL values. Choose this when you can't guarantee
@@ -424,6 +436,7 @@ defmodule Torus do
     qualifiers = List.wrap(qualifiers)
     language = get_language(opts)
     prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
+    empty_return = get_arg!(opts, :empty_return, true, @true_false)
     stored = get_arg!(opts, :stored, false, @true_false)
     term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
     rank_function = get_arg!(opts, :rank_function, :ts_rank_cd, @rank_functions)
@@ -443,6 +456,7 @@ defmodule Torus do
 
     coalesce = Keyword.get(opts, :coalesce, filter_type == :concat and length(qualifiers) > 1)
     coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
+    empty_return = empty_return |> to_string() |> String.upcase()
 
     # Arguments validation
     raise_if(
@@ -470,7 +484,7 @@ defmodule Torus do
         # We need to handle empty strings for prefix search queries
         concat_filter_string = """
         CASE
-            WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN FALSE
+            WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN #{empty_return}
             ELSE #{concat_filter_string}
         END
         """
@@ -559,10 +573,12 @@ defmodule Torus do
   defmacro to_tsquery(column, query_text, opts \\ []) do
     language = get_language(opts)
     prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
+    empty_return = get_arg!(opts, :empty_return, true, @true_false)
     stored = get_arg!(opts, :stored, false, @true_false)
     prefix_string = prefix_search_string(prefix_search)
     term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
     vector = if stored, do: "?", else: "to_tsvector(#{language}, ?)"
+    empty_return = empty_return |> to_string() |> String.upcase()
 
     ts_vector_match_string =
       "#{vector} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
@@ -570,7 +586,7 @@ defmodule Torus do
     if prefix_search do
       ts_vector_match_string = """
       CASE
-          WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN FALSE
+          WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN #{empty_return}
           ELSE #{ts_vector_match_string}
       END
       """
@@ -651,7 +667,83 @@ defmodule Torus do
     end
   end
 
-  # Functions
+  # TODO: Docs
+  defdelegate to_vectors(terms, opts \\ []), to: Torus.SemanticSearch
+
+  # TODO: Docs
+  defdelegate to_vector(term, opts \\ []), to: Torus.SemanticSearch
+
+  # TODO: Docs
+  defdelegate embedding_model(opts \\ []), to: Torus.SemanticSearch
+
+  @distance_types ~w[l2_distance max_inner_product cosine_distance l1_distance hamming_distance jaccard_distance]a
+
+  @vector_operators_map %{
+    l2_distance: "<->",
+    max_inner_product: "<#>",
+    cosine_distance: "<=>",
+    l1_distance: "<+>",
+    hamming_distance: "<~>",
+    jaccard_distance: "<%>"
+  }
+
+  @doc """
+  Semantic search using pgvector extension to compare vectors. See `Torus.Semantic` for more info.
+
+  ## Options
+    * `:distance` - a way to calculate the distance between the vectors. See `Torus.Semantic.Distance` for more examples. can be one of:
+      - `:l2_distance` (default) - L2 distance
+      - `:max_inner_product` - negative inner product
+      - `:cosine_distance` - cosine distance
+      - `:l1_distance` - L1 distance
+      - `:hamming_distance` - Hamming distance
+      - `:jaccard_distance` - Jaccard distance
+    * `:order` - describes the ordering of the results. Possible values are
+      - `:asc` (default) - orders the results by distance in ascending order. 0 distance means that the vectors are the same meaning the the terms are equal. The closer the vectors - more aligned are the terms.
+      - `:desc` - orders the results by distance in descending order.
+      - `:none` - doesn't apply ordering at all.
+    * `:pre_filter` - a positive float that is passed directly to the query to pre-filter the results.
+      - `:none` (default) - no pre-filtering is done.
+      - `float` - pre-filters the results before applying the order. The results with vectors distance below the pre-filter value are returned.
+  """
+  defmacro semantic(query, bindings, qualifier, vector_term, opts \\ []) do
+    distance = get_arg!(opts, :distance, :l2_distance, @distance_types)
+    order = get_arg!(opts, :order, :asc, @order_types)
+    operator = Map.fetch!(@vector_operators_map, distance)
+    pre_filter = Keyword.get(opts, :pre_filter, :none)
+
+    quote do
+      if not is_struct(unquote(vector_term), Pgvector) do
+        raise """
+        `vector_term` should be a Pgvector struct.
+
+        The best way to generate it is to use `Torus.to_vector/1,2` or `Torus.to_vectors/1,2` functions.
+        """
+      end
+
+      unquote(query)
+      |> apply_if(
+        is_float(unquote(pre_filter)),
+        fn query ->
+          where(
+            query,
+            [unquote_splicing(bindings)],
+            operator(unquote(qualifier), unquote(operator), ^unquote(vector_term)) <
+              unquote(pre_filter)
+          )
+        end
+      )
+      |> apply_if(unquote(order) != :none, fn query ->
+        order_by(
+          query,
+          [unquote_splicing(bindings)],
+          {unquote(order), operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))}
+        )
+      end)
+    end
+  end
+
+  # Private Functions
 
   @doc false
   def apply_if(query, condition, query_fun) do

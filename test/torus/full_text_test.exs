@@ -7,7 +7,7 @@ defmodule Torus.FullTextTest do
       insert_post!(title: "magic's most wanted witches")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN FALSE\n    ELSE to_tsvector('english', p0.\"title\") @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n OR 'false') ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('english', p0.\"title\"), 'A'), (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery, 4)\nEND) DESC\n"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN TRUE\n    ELSE to_tsvector('english', p0.\"title\") @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n OR 'false') ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('english', p0.\"title\"), 'A'), (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery, 4)\nEND) DESC\n"
 
       assert ^sql =
                Post
@@ -32,7 +32,7 @@ defmodule Torus.FullTextTest do
       insert_post!(title: "magiens mest eftersøgte hekse")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('danish', 'magien')::text) = '' THEN FALSE\n    ELSE to_tsvector('danish', p0.\"title\") @@ (websearch_to_tsquery('danish', 'magien')::text || ':*')::tsquery\nEND\n OR 'false') ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('danish', 'magien')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('danish', p0.\"title\"), 'A'), (websearch_to_tsquery('danish', 'magien')::text || ':*')::tsquery, 4)\nEND) DESC\n"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('danish', 'magien')::text) = '' THEN TRUE\n    ELSE to_tsvector('danish', p0.\"title\") @@ (websearch_to_tsquery('danish', 'magien')::text || ':*')::tsquery\nEND\n OR 'false') ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('danish', 'magien')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('danish', p0.\"title\"), 'A'), (websearch_to_tsquery('danish', 'magien')::text || ':*')::tsquery, 4)\nEND) DESC\n"
 
       assert ^sql =
                Post
@@ -54,7 +54,7 @@ defmodule Torus.FullTextTest do
       insert_post!(body: "hogwarts magic is in our hearts")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN FALSE\n    ELSE to_tsvector('english', p0.\"body\") @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n OR (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN FALSE\n    ELSE to_tsvector('english', p0.\"title\") @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n OR 'false')) ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('english', p0.\"title\"), 'A') || setweight(to_tsvector('english', p0.\"body\"), 'B'), (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery, 4)\nEND) DESC\n"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN TRUE\n    ELSE to_tsvector('english', p0.\"body\") @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n OR (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN TRUE\n    ELSE to_tsvector('english', p0.\"title\") @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n OR 'false')) ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('english', p0.\"title\"), 'A') || setweight(to_tsvector('english', p0.\"body\"), 'B'), (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery, 4)\nEND) DESC\n"
 
       assert ^sql =
                Post
@@ -80,7 +80,7 @@ defmodule Torus.FullTextTest do
       insert_post!(title: "Dumbledore!", body: "hogwarts magic is in our hearts")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN FALSE\n    ELSE setweight(to_tsvector('english', COALESCE(p0.\"title\", '')), 'A') || setweight(to_tsvector('english', COALESCE(p0.\"body\", '')), 'B') @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n) ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('english', COALESCE(p0.\"title\", '')), 'A') || setweight(to_tsvector('english', COALESCE(p0.\"body\", '')), 'B'), (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery, 4)\nEND) DESC\n"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN TRUE\n    ELSE setweight(to_tsvector('english', COALESCE(p0.\"title\", '')), 'A') || setweight(to_tsvector('english', COALESCE(p0.\"body\", '')), 'B') @@ (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery\nEND\n) ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'magic')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(to_tsvector('english', COALESCE(p0.\"title\", '')), 'A') || setweight(to_tsvector('english', COALESCE(p0.\"body\", '')), 'B'), (websearch_to_tsquery('english', 'magic')::text || ':*')::tsquery, 4)\nEND) DESC\n"
 
       assert ^sql =
                Post
@@ -130,7 +130,7 @@ defmodule Torus.FullTextTest do
       insert_post!(title: "Dumbledore!", body: "hogwarts magic is in our hearts")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(plainto_tsquery('danish', 'magic')::text) = '' THEN FALSE\n    ELSE setweight(to_tsvector('danish', COALESCE(p0.\"title\", '')), 'B') || setweight(to_tsvector('danish', COALESCE(p0.\"body\", '')), 'B') @@ (plainto_tsquery('danish', 'magic')::text || ':*')::tsquery\nEND\n) ORDER BY (CASE\n    WHEN trim(plainto_tsquery('danish', 'magic')::text) = '' THEN 1\n    ELSE ts_rank(setweight(to_tsvector('danish', COALESCE(p0.\"title\", '')), 'B') || setweight(to_tsvector('danish', COALESCE(p0.\"body\", '')), 'B'), (plainto_tsquery('danish', 'magic')::text || ':*')::tsquery, 12)\nEND) ASC\n"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(plainto_tsquery('danish', 'magic')::text) = '' THEN TRUE\n    ELSE setweight(to_tsvector('danish', COALESCE(p0.\"title\", '')), 'B') || setweight(to_tsvector('danish', COALESCE(p0.\"body\", '')), 'B') @@ (plainto_tsquery('danish', 'magic')::text || ':*')::tsquery\nEND\n) ORDER BY (CASE\n    WHEN trim(plainto_tsquery('danish', 'magic')::text) = '' THEN 1\n    ELSE ts_rank(setweight(to_tsvector('danish', COALESCE(p0.\"title\", '')), 'B') || setweight(to_tsvector('danish', COALESCE(p0.\"body\", '')), 'B'), (plainto_tsquery('danish', 'magic')::text || ':*')::tsquery, 12)\nEND) ASC\n"
 
       assert ^sql =
                Post
@@ -246,7 +246,7 @@ defmodule Torus.FullTextTest do
       insert_post!(title: "Completely unrelated", body: "No magic here!")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'uncov hogwar')::text) = '' THEN FALSE\n    ELSE p0.\"tsv\" @@ (websearch_to_tsquery('english', 'uncov hogwar')::text || ':*')::tsquery\nEND\n OR 'false') ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'uncov hogwar')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(p0.\"tsv\", 'A'), (websearch_to_tsquery('english', 'uncov hogwar')::text || ':*')::tsquery, 4)\nEND) DESC\n"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 WHERE (CASE\n    WHEN trim(websearch_to_tsquery('english', 'uncov hogwar')::text) = '' THEN TRUE\n    ELSE p0.\"tsv\" @@ (websearch_to_tsquery('english', 'uncov hogwar')::text || ':*')::tsquery\nEND\n OR 'false') ORDER BY (CASE\n    WHEN trim(websearch_to_tsquery('english', 'uncov hogwar')::text) = '' THEN 1\n    ELSE ts_rank_cd(setweight(p0.\"tsv\", 'A'), (websearch_to_tsquery('english', 'uncov hogwar')::text || ':*')::tsquery, 4)\nEND) DESC\n"
 
       assert ^sql =
                Post
