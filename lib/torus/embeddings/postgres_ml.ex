@@ -6,6 +6,7 @@ defmodule Torus.Embeddings.PostgresML do
 
   ```elixir
   config :torus, embedding_module: Torus.Embeddings.PostgresML
+  config :torus, Torus.Embeddings.PostgresML, repo: YourApp.Repo
   ```
 
   By default, it uses `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` to the config:

@@ -301,7 +301,7 @@ defmodule Torus do
       term in the concatenated string containing all columns.
       - `:none` - doesn't apply any filtering and returns all results.
     * `empty_return`
-      - `true`(default) - returns all results when the search term is empty.
+      - `true` (default) - returns all results when the search term is empty.
       - `false` - returns an empty list when the search term is empty.
     * `:coalesce`
       - `true` (default) - when joining columns via `:concat` option, adds a
