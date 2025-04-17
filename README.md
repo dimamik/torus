@@ -21,7 +21,7 @@ def deps do
 end
 ```
 
-Then, in any query, you can (for example) add a full-text search:
+Then, in any query, you can (for example) add a prefixed full-text search:
 
 ```elixir
 import Torus
@@ -29,8 +29,10 @@ import Torus
 
 Post
 # ... your complex query
-|> Torus.full_text([p], [p.title, p.body], "uncovered hogwarts")
+|> Torus.full_text([p], [p.title, p.body], "uncove hogwar")
+|> select([p], p.title)
 |> Repo.all()
+["Uncovered hogwarts"]
 ```
 
 See `full_text/5` for more details.
@@ -67,14 +69,14 @@ See `full_text/5` for more details.
 1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling efficient querying and ranking based on term frequency. - [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html). Is great for large datasets to quickly return relevant results.
 
    ```elixir
-      iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
-      ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
-      ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
-      ...>  Post
-      ...> |> Torus.full_text([p], [p.title, p.body], "uncov hogwar")
-      ...> |> select([p], p.title)
-      ...> |> Repo.all()
-      ["Diagon Bombshell"]
+   iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+   ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+   ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
+   ...> Post
+   ...> |> Torus.full_text([p], [p.title, p.body], "uncov hogwar")
+   ...> |> select([p], p.title)
+   ...> |> Repo.all()
+   ["Diagon Bombshell"]
    ```
 
    See `full_text/5` for more details.
@@ -82,7 +84,21 @@ See `full_text/5` for more details.
 1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content, often utilizing natural language processing.
    [Semantic Search with PostgreSQL and OpenAI Embeddings](https://towardsdatascience.com/semantic-search-with-postgresql-and-openai-embeddings-4d327236f41f)
 
-   Will be added soon.
+   ```elixir
+   insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+   insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+   insert_post!(title: "Completely unrelated", body: "No magic here!")
+
+   embedding_vector = Torus.to_vector("A magic school in the UK")
+
+   Post
+   |> Torus.full_text([p], p.embedding, embedding_vector)
+   |> select([p], p.title)
+   |> Repo.all()
+   ["Diagon Bombshell"]
+   ```
+
+   See `semantic/5` for more details.
 
 1. **Hybrid Search**: Combines multiple search techniques (e.g., keyword and semantic) to leverage their strengths for more accurate results.
 
@@ -107,17 +123,11 @@ Torus offers a few helpers to debug, explain, and analyze your queries before us
 
 ## Torus support
 
-For now, Torus supports pattern match, similarity, and full-text search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
+For now, Torus supports pattern match, similarity, full-text, and semantic search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
 
 <!-- MDOC -->
 
 ## Future plans
 
-- [ ] Implement more search types and functions from PostgreSQL docs, provide examples and docs for them
-- [ ] Make `full_text/5` more extensible by splitting it to building blocks and defining more arguments. Leave the default (without args) version fit for most cases.
 - [ ] Add support for highlighting search results. (Base off of a `ts_headline` function)
-- [ ] Create a clean API for semantic search, make it easy to abstract embedding creation and storage
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/torus>.
+- [ ] Extend similarity search to support [`fuzzystrmatch`](https://www.postgresql.org/docs/current/fuzzystrmatch.html) extension distance options.

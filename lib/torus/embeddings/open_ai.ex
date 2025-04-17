@@ -1,7 +1,39 @@
 if Code.ensure_loaded?(Req) do
   defmodule Torus.Embeddings.OpenAI do
     @moduledoc """
-    Embedding generator using OpenAI Embedding API.
+    A wrapper around OpenAI API. It allows you to generate embeddings using OpenAI models.
+
+    To use it:
+
+    - Add the following to your `config.exs`:
+
+      ```elixir
+      config :torus, embedding_module: Torus.Embeddings.OpenAI
+      ```
+
+    - Add `req` to your `mix.exs` dependencies:
+
+      ```elixir
+      def deps do
+      [
+        {:req, "~> 0.5"}
+      ]
+      end
+      ```
+
+    - Add an API token for hugging face to your `runtime.exs`. You can get your token [here](https://huggingface.co/settings/tokens).
+
+      ```elixir
+      config :torus, Torus.Embeddings.OpenAI, token: System.get_env("OPEN_AI_API_KEY")
+      ```
+
+    By default, it uses `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` to the config:
+
+    ```elixir
+    config :torus, Torus.Embeddings.OpenAI, model: "your/model"
+    ```
+
+    See `Torus.semantic/5` on how to use this module to introduce semantic search in your application.
     """
     @behaviour Torus.Embedding
 

@@ -1,32 +1,73 @@
-defmodule Torus.Embeddings.BatchServer do
+defmodule Torus.Embeddings.Batcher do
   @moduledoc """
-  TODO: Add docs
-  A `Torus.Embedding` implementation that batches embedding generation requests together and sends them to `embedding_module` for further processing.
+  Size/time‑bounded **batcher** for embedding generation.
 
-  It will trigger a generation either when a specified number of terms has been queued or when a configurable timeout has been reached.
+  `Torus.Embeddings.Batcher` is a long‑running GenServer that collects
+  individual `generate/2` calls, groups them into a single batch, and forwards the
+  batch to the configured `embedding_module`.
 
-  ## Features
+  ---
 
-    * Automatically batches incoming embedding requests.
-    * Configurable batch size and timeout (via `:torus` app config or passed options).
-    * Forwards batch to the configured embedding adapter module.
-    * Splits and replies to individual callers with their respective embeddings.
+  ## Why batch?
+
+  * **Fewer model / network invocations** – one request with *n* terms is cheaper
+  than *n* single‑term requests.
+  * **Lower latency under load** – callers wait only for the current batch to
+  flush, not for an entire queue of independent requests.
+  * **Higher throughput per API quota** – most providers charge per request, so
+  batched calls extract more value from the same quota.
+
+  ---
+
+  ## Flush conditions
+
+  A batch is flushed when **either** condition is met (whichever comes first):
+
+  * the queue reaches `max_batch_size` terms, or
+  * `max_batch_wait_ms` elapses after the first term was queued.
+
+  Both limits are fully configurable.
+
+  ---
 
   ## Configuration
 
-  You can customize the batching behavior using the following application environment keys:
+  It's considered a good practise to batch requests to the embedding module, especially when you are dealing with a high-traffic applications.
+
+  To use it:
+
+  - Add the following to your `config.exs`:
 
   ```elixir
-  config :torus, Torus.Embeddings.BatchServer,
-  batch_size: 100,
-  batch_timeout: 100
+   config :torus, batcher: Torus.Embeddings.Batcher
+
+   config :torus, Torus.Embeddings.Batcher,
+      max_batch_size: 10,
+      default_batch_timeout: 100,
+      embedding_module: Torus.Embeddings.HuggingFace
   ```
 
-  These can also be overridden via options passed to start_link/1 or generate/2.
+  - Add it to your supervision tree:
 
-  ## Usage
-  Clients should call generate/2 with a list of terms to embed. This call is synchronous and will block until the batch is flushed and embeddings are returned.
+  ```elixir
+  def start(_type, _args) do
+    children = [
+      # Your deps
+      Torus.Embeddings.Batcher
+    ]
 
+    opts = [strategy: :one_for_one, name: YourApp.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+  ```
+
+  - Configure your `embedding_module` of choice (see corresponding section)
+
+  And you should be good to call `Torus.to_vector/1` and `Torus.to_vectors/1` functions.
+
+  Also, you can configure `call_timeout` option in `Torus.to_vector/2` and `Torus.to_vectors/2` functions to override the default timeout for the batching call. This is useful if you're okay to wait longer for the batch to flush and your embedder to generate the embedding.
+
+  See `Torus.semantic/5` on how to use this module to introduce semantic search in your application.
   """
 
   use GenServer
@@ -34,7 +75,7 @@ defmodule Torus.Embeddings.BatchServer do
 
   alias Torus.Embeddings.Common
 
-  @default_batch_size 10
+  @default_max_batch_size 10
   @default_batch_timeout 100
   @call_timeout @default_batch_timeout * 100
 
@@ -58,7 +99,8 @@ defmodule Torus.Embeddings.BatchServer do
   def init(opts \\ []) do
     {:ok,
      %{
-       batch_size: Common.get_option(opts, __MODULE__, :batch_size, @default_batch_size),
+       max_batch_size:
+         Common.get_option(opts, __MODULE__, :max_batch_size, @default_max_batch_size),
        batch_timeout: Common.get_option(opts, __MODULE__, :batch_timeout, @default_batch_timeout),
        embedding_module: embedding_module(opts),
        queue: [],
@@ -87,8 +129,8 @@ defmodule Torus.Embeddings.BatchServer do
 
   ## Helpers
 
-  defp maybe_flush(%{queue: queue, batch_size: batch_size} = state)
-       when length(queue) >= batch_size do
+  defp maybe_flush(%{queue: queue, max_batch_size: max_batch_size} = state)
+       when length(queue) >= max_batch_size do
     cancel_timer(state.timer)
     flush_batch(state)
     {:noreply, %{state | queue: [], timer: nil}}

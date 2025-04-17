@@ -6,12 +6,11 @@ defmodule Torus do
              |> String.split("<!-- MDOC -->")
              |> Enum.fetch!(1)
 
-  import Ecto.Query
+  import Ecto.Query, warn: false
 
-  @default_language "english"
+  ## Pattern matching searches
 
-  ## Similarity searches
-
+  @doc group: "Pattern matching"
   @doc """
   Case-insensitive pattern matching search using
   [PostgreSQL `ILIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
@@ -50,23 +49,10 @@ defmodule Torus do
   See `like/5` optimization section for more details.
   """
   defmacro ilike(query, bindings, qualifiers, term, _opts \\ []) do
-    qualifiers = List.wrap(qualifiers)
-
-    where_ast =
-      Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
-        quote do
-          dynamic(
-            [unquote_splicing(bindings)],
-            ilike(unquote(qualifier), ^unquote(term)) or ^unquote(conditions_acc)
-          )
-        end
-      end)
-
-    quote do
-      where(unquote(query), ^unquote(where_ast))
-    end
+    Torus.Search.PatternMatch.ilike(query, bindings, qualifiers, term)
   end
 
+  @doc group: "Pattern matching"
   @doc """
   Case-sensitive pattern matching search using [PostgreSQL `LIKE`](https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE) operator.
 
@@ -122,23 +108,10 @@ defmodule Torus do
   details.
   """
   defmacro like(query, bindings, qualifiers, term, _opts \\ []) do
-    qualifiers = List.wrap(qualifiers)
-
-    where_ast =
-      Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
-        quote do
-          dynamic(
-            [unquote_splicing(bindings)],
-            like(unquote(qualifier), ^unquote(term)) or ^unquote(conditions_acc)
-          )
-        end
-      end)
-
-    quote do
-      where(unquote(query), ^unquote(where_ast))
-    end
+    Torus.Search.PatternMatch.like(query, bindings, qualifiers, term)
   end
 
+  @doc group: "Pattern matching"
   @doc """
   Similar to `like/5`, except that it interprets the pattern using the SQL standard's
   definition of a regular expression. SQL regular expressions are a curious cross between
@@ -162,30 +135,14 @@ defmodule Torus do
   """
   # TODO: Adjust the description when POSIX regex is added
   defmacro similar_to(query, bindings, qualifiers, term, _opts \\ []) do
-    qualifiers = List.wrap(qualifiers)
-
-    where_ast =
-      Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
-        quote do
-          dynamic(
-            [unquote_splicing(bindings)],
-            operator(unquote(qualifier), "SIMILAR TO", ^unquote(term)) or ^unquote(conditions_acc)
-          )
-        end
-      end)
-
-    quote do
-      where(unquote(query), ^unquote(where_ast))
-    end
+    Torus.Search.PatternMatch.similar_to(query, bindings, qualifiers, term)
   end
 
   # -----------------------------------
   # TODO: Add POSIX Regular Expressions
   # -----------------------------------
 
-  @similarity_types ~w[word strict full]a
-  @order_types ~w[desc asc none]a
-  @true_false ~w[true false]a
+  @doc group: "Similarity"
   @doc """
   Case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
 
@@ -264,68 +221,14 @@ defmodule Torus do
   ```
   """
   defmacro similarity(query, bindings, qualifiers, term, opts \\ []) do
-    # Arguments fetching
-    order = get_arg!(opts, :order, :desc, @order_types)
-    pre_filter = get_arg!(opts, :pre_filter, false, @true_false)
-    qualifiers = List.wrap(qualifiers)
-    similarity_type = get_arg!(opts, :type, :full, @similarity_types)
-
-    # Arguments preparation
-    {similarity_function, similarity_operator} =
-      case similarity_type do
-        :full -> {"similarity", "%"}
-        :strict -> {"strict_word_similarity", "<<%"}
-        :word -> {"word_similarity", "<%"}
-      end
-
-    desc_asc_string = descending_ascending(order)
-    similarity_function = "#{similarity_function}(?, ?) #{desc_asc_string}"
-    multiple_qualifiers = length(qualifiers) > 1
-    has_order = order != :none
-
-    # Query building
-    quote do
-      unquote(query)
-      |> apply_if(unquote(pre_filter) and unquote(multiple_qualifiers), fn query ->
-        where(
-          query,
-          [unquote_splicing(bindings)],
-          operator(^unquote(term), unquote(similarity_operator), concat_ws(unquote(qualifiers)))
-        )
-      end)
-      |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers), fn query ->
-        where(
-          query,
-          [unquote_splicing(bindings)],
-          operator(^unquote(term), unquote(similarity_operator), unquote(List.first(qualifiers)))
-        )
-      end)
-      |> apply_if(unquote(has_order) and unquote(multiple_qualifiers), fn query ->
-        order_by(
-          query,
-          [unquote_splicing(bindings)],
-          fragment(unquote(similarity_function), ^unquote(term), concat_ws(unquote(qualifiers)))
-        )
-      end)
-      |> apply_if(unquote(has_order) and not unquote(multiple_qualifiers), fn query ->
-        order_by(
-          query,
-          [unquote_splicing(bindings)],
-          fragment(unquote(similarity_function), ^unquote(term), unquote(List.first(qualifiers)))
-        )
-      end)
-    end
+    Torus.Search.Similarity.similarity(query, bindings, qualifiers, term, opts)
   end
 
   # ----------------------------------------------------------------
   # TODO: Combine different types of searches (or at least show how)
   # ----------------------------------------------------------------
 
-  @supported_weights ~w[A B C D]
-  @term_functions ~w[websearch_to_tsquery plainto_tsquery phraseto_tsquery]a
-  @rank_functions ~w[ts_rank_cd ts_rank]a
-  @filter_types ~w[or concat none]a
-
+  @doc group: "Full text"
   @doc """
   Full text search with rank ordering. Accepts a list of columns to search in. A list of columns
   can either be a text or `tsvector` type. If `tsvector`s are passed make sure to set
@@ -432,184 +335,15 @@ defmodule Torus do
       ```
   """
   defmacro full_text(query, bindings, qualifiers, term, opts \\ []) do
-    # Arguments fetching
-    qualifiers = List.wrap(qualifiers)
-    language = get_language(opts)
-    prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
-    empty_return = get_arg!(opts, :empty_return, true, @true_false)
-    stored = get_arg!(opts, :stored, false, @true_false)
-    term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
-    rank_function = get_arg!(opts, :rank_function, :ts_rank_cd, @rank_functions)
-    filter_type = get_arg!(opts, :filter_type, :or, @filter_types)
-    order = get_arg!(opts, :order, :desc, @order_types)
-
-    rank_weights =
-      Keyword.get_lazy(opts, :rank_weights, fn ->
-        exceeding_size = max(length(qualifiers) - 4, 0)
-        [:A, :B, :C, :D] ++ List.duplicate(:D, exceeding_size)
-      end)
-
-    rank_normalization =
-      Keyword.get_lazy(opts, :rank_normalization, fn ->
-        if rank_function == :ts_rank_cd, do: 4, else: 1
-      end)
-
-    coalesce = Keyword.get(opts, :coalesce, filter_type == :concat and length(qualifiers) > 1)
-    coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
-    empty_return = empty_return |> to_string() |> String.upcase()
-
-    # Arguments validation
-    raise_if(
-      length(rank_weights) < length(qualifiers),
-      "The length of `rank_weights` should be the same as the length of the qualifiers."
-    )
-
-    raise_if(
-      not Enum.all?(rank_weights, &(to_string(&1) in @supported_weights)),
-      "Each rank weight from `rank_weights` should be one of the: #{@supported_weights}"
-    )
-
-    # Arguments preparation
-    prefix_string = prefix_search_string(prefix_search)
-    desc_asc = descending_ascending(order)
-    has_order = order != :none
-
-    weighted_columns = prepare_weights(qualifiers, stored, language, rank_weights, coalesce)
-
-    concat_filter_string =
-      "#{weighted_columns} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
-
-    concat_filter_fragment =
-      if prefix_search do
-        # We need to handle empty strings for prefix search queries
-        concat_filter_string = """
-        CASE
-            WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN #{empty_return}
-            ELSE #{concat_filter_string}
-        END
-        """
-
-        quote do
-          fragment(
-            unquote(concat_filter_string),
-            ^unquote(term),
-            unquote_splicing(qualifiers),
-            ^unquote(term)
-          )
-        end
-      else
-        quote do
-          fragment(
-            unquote(concat_filter_string),
-            unquote_splicing(qualifiers),
-            ^unquote(term)
-          )
-        end
-      end
-
-    order_string =
-      "#{rank_function}(#{weighted_columns}, (#{term_function}(#{language}, ?)#{prefix_string})::tsquery, #{rank_normalization})"
-
-    order_fragment =
-      if prefix_search do
-        # We need to handle empty strings for prefix search queries
-        order_string = """
-        (CASE
-            WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN 1
-            ELSE #{order_string}
-        END) #{desc_asc}
-        """
-
-        quote do
-          fragment(
-            unquote(order_string),
-            ^unquote(term),
-            unquote_splicing(qualifiers),
-            ^unquote(term)
-          )
-        end
-      else
-        order_string = "#{order_string} #{desc_asc}"
-
-        quote do
-          fragment(unquote(order_string), unquote_splicing(qualifiers), ^unquote(term))
-        end
-      end
-
-    or_filter_ast =
-      Enum.reduce(qualifiers, false, fn qualifier, conditions_acc ->
-        quote do
-          dynamic(
-            [unquote_splicing(bindings)],
-            to_tsquery(unquote(qualifier), ^unquote(term), unquote(opts)) or
-              ^unquote(conditions_acc)
-          )
-        end
-      end)
-
-    # Query building
-    quote do
-      unquote(query)
-      |> apply_case(
-        unquote(filter_type),
-        fn
-          :none, query ->
-            query
-
-          :or, query ->
-            where(unquote(query), ^unquote(or_filter_ast))
-
-          :concat, query ->
-            where(unquote(query), [unquote_splicing(bindings)], unquote(concat_filter_fragment))
-        end
-      )
-      |> apply_if(unquote(has_order), fn query ->
-        order_by(query, [unquote_splicing(bindings)], unquote(order_fragment))
-      end)
-    end
+    Torus.Search.FullText.full_text(query, bindings, qualifiers, term, opts)
   end
 
   @doc false
   defmacro to_tsquery(column, query_text, opts \\ []) do
-    language = get_language(opts)
-    prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
-    empty_return = get_arg!(opts, :empty_return, true, @true_false)
-    stored = get_arg!(opts, :stored, false, @true_false)
-    prefix_string = prefix_search_string(prefix_search)
-    term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
-    vector = if stored, do: "?", else: "to_tsvector(#{language}, ?)"
-    empty_return = empty_return |> to_string() |> String.upcase()
-
-    ts_vector_match_string =
-      "#{vector} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
-
-    if prefix_search do
-      ts_vector_match_string = """
-      CASE
-          WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN #{empty_return}
-          ELSE #{ts_vector_match_string}
-      END
-      """
-
-      quote do
-        fragment(
-          unquote(ts_vector_match_string),
-          unquote(query_text),
-          unquote(column),
-          unquote(query_text)
-        )
-      end
-    else
-      quote do
-        fragment(
-          unquote(ts_vector_match_string),
-          unquote(column),
-          unquote(query_text)
-        )
-      end
-    end
+    Torus.Search.FullText.to_tsquery(column, query_text, opts)
   end
 
+  @doc group: "Pattern matching"
   @doc """
   The substring function with three parameters provides extraction of a substring
   that matches an SQL regular expression pattern. The function can be written
@@ -639,18 +373,12 @@ defmodule Torus do
     end
   end
 
-  # Private helpers
-
-  # Macros
+  # Private macros
 
   @doc false
   defmacro operator(a, operator, b) do
     quote do
-      fragment(
-        unquote("? #{operator} ?"),
-        unquote(a),
-        unquote(b)
-      )
+      fragment(unquote("? #{operator} ?"), unquote(a), unquote(b))
     end
   end
 
@@ -667,31 +395,41 @@ defmodule Torus do
     end
   end
 
-  # TODO: Docs
-  defdelegate to_vectors(terms, opts \\ []), to: Torus.SemanticSearch
-
-  # TODO: Docs
-  defdelegate to_vector(term, opts \\ []), to: Torus.SemanticSearch
-
-  # TODO: Docs
-  defdelegate embedding_model(opts \\ []), to: Torus.SemanticSearch
-
-  @distance_types ~w[l2_distance max_inner_product cosine_distance l1_distance hamming_distance jaccard_distance]a
-
-  @vector_operators_map %{
-    l2_distance: "<->",
-    max_inner_product: "<#>",
-    cosine_distance: "<=>",
-    l1_distance: "<+>",
-    hamming_distance: "<~>",
-    jaccard_distance: "<%>"
-  }
-
+  @doc group: "Semantic"
   @doc """
-  Semantic search using pgvector extension to compare vectors. See `Torus.Semantic` for more info.
+  Takes a list of terms (binaries) and embedding module's specific options and passes them to `embedding_module` `generate/2` function.
+
+  Configure `embedding_module` either in `config.exs`:
+
+        config :torus, :embedding_module, Torus.Embeddings.HuggingFace
+
+  or pass `embedding_module` as an option to `to_vectors/2` function. Options always
+  have greater priority than the config.
+
+  See [Semantic search guide](semantic_search.html) for more info.
+  """
+  defdelegate to_vectors(terms, opts \\ []), to: Torus.Search.Semantic
+
+  @doc group: "Semantic"
+  @doc """
+  Same as `to_vectors/2`, but returns the first vector from the list.
+  """
+  defdelegate to_vector(term, opts \\ []), to: Torus.Search.Semantic
+
+  @doc group: "Semantic"
+  @doc """
+  Calls the specified embedding module's `embedding_model/1` function to retrieve the model name.
+
+  See [Semantic search guide](semantic_search.html) for more info.
+  """
+  defdelegate embedding_model(opts \\ []), to: Torus.Search.Semantic
+
+  @doc group: "Semantic"
+  @doc """
+  Semantic search using pgvector extension to compare vectors. See [Semantic search guide](semantic_search.html) for more info.
 
   ## Options
-    * `:distance` - a way to calculate the distance between the vectors. See `Torus.Semantic.Distance` for more examples. can be one of:
+    * `:distance` - a way to calculate the distance between the vectors. Can be one of:
       - `:l2_distance` (default) - L2 distance
       - `:max_inner_product` - negative inner product
       - `:cosine_distance` - cosine distance
@@ -705,100 +443,18 @@ defmodule Torus do
     * `:pre_filter` - a positive float that is passed directly to the query to pre-filter the results.
       - `:none` (default) - no pre-filtering is done.
       - `float` - pre-filters the results before applying the order. The results with vectors distance below the pre-filter value are returned.
+
+  ## Examples
+
+      def search(term) do
+        search_vector = Torus.to_vector(term)
+
+        Post
+        |> Torus.semantic([p], p.embedding, search_vector)
+        |> Repo.all()
+      end
   """
   defmacro semantic(query, bindings, qualifier, vector_term, opts \\ []) do
-    distance = get_arg!(opts, :distance, :l2_distance, @distance_types)
-    order = get_arg!(opts, :order, :asc, @order_types)
-    operator = Map.fetch!(@vector_operators_map, distance)
-    pre_filter = Keyword.get(opts, :pre_filter, :none)
-
-    quote do
-      if not is_struct(unquote(vector_term), Pgvector) do
-        raise """
-        `vector_term` should be a Pgvector struct.
-
-        The best way to generate it is to use `Torus.to_vector/1,2` or `Torus.to_vectors/1,2` functions.
-        """
-      end
-
-      unquote(query)
-      |> apply_if(
-        is_float(unquote(pre_filter)),
-        fn query ->
-          where(
-            query,
-            [unquote_splicing(bindings)],
-            operator(unquote(qualifier), unquote(operator), ^unquote(vector_term)) <
-              unquote(pre_filter)
-          )
-        end
-      )
-      |> apply_if(unquote(order) != :none, fn query ->
-        order_by(
-          query,
-          [unquote_splicing(bindings)],
-          {unquote(order), operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))}
-        )
-      end)
-    end
-  end
-
-  # Private Functions
-
-  @doc false
-  def apply_if(query, condition, query_fun) do
-    if condition, do: query_fun.(query), else: query
-  end
-
-  @doc false
-  def apply_case(query, case_condition, query_fun) do
-    query_fun.(case_condition, query)
-  end
-
-  defp prefix_search_string(prefix_search) when is_boolean(prefix_search) do
-    if prefix_search, do: "::text || ':*'", else: ""
-  end
-
-  defp descending_ascending(order) when order in @order_types do
-    order |> to_string() |> String.upcase()
-  end
-
-  defp prepare_weights(qualifiers, false, language, rank_weights, coalesce) do
-    qualifiers
-    |> Enum.with_index()
-    |> Enum.map_join(" || ", fn {_qualifier, index} ->
-      weight = Enum.fetch!(rank_weights, index)
-      coalesce = if coalesce, do: "COALESCE(?, '')", else: "?"
-      "setweight(to_tsvector(#{language}, #{coalesce}), '#{weight}')"
-    end)
-  end
-
-  defp prepare_weights(qualifiers, true, _language, rank_weights, coalesce) do
-    qualifiers
-    |> Enum.with_index()
-    |> Enum.map_join(" || ", fn {_qualifier, index} ->
-      weight = Enum.fetch!(rank_weights, index)
-      coalesce = if coalesce, do: "COALESCE(?, '')", else: "?"
-      "setweight(#{coalesce}, '#{weight}')"
-    end)
-  end
-
-  defp raise_if(condition, message) do
-    if condition, do: raise(message)
-  end
-
-  defp get_language(opts) do
-    opts |> Keyword.get(:language, @default_language) |> then(&("'" <> &1 <> "'"))
-  end
-
-  defp get_arg!(opts, value_key, value_default, supported_values) do
-    value = Keyword.get(opts, value_key, value_default)
-
-    raise_if(
-      value not in supported_values,
-      "The value of `#{value_key}` should be one of the: #{inspect(supported_values)}"
-    )
-
-    value
+    Torus.Search.Semantic.semantic(query, bindings, qualifier, vector_term, opts)
   end
 end

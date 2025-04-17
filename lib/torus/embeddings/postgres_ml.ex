@@ -1,6 +1,22 @@
-defmodule Torus.Embeddings.PostgresMl do
+defmodule Torus.Embeddings.PostgresML do
   @moduledoc """
-  Read more about in [PostgresML](https://postgresml.org/blog/semantic-search-in-postgres-in-15-minutes).
+  `Torus.Embeddings.PostgresML` uses PostgreSQL [PostgresML extension](https://PostgresML.org/docs) to generate embeddings. It allows you to generate embeddings using a variety of models and performs inference directly in the database. This would require your database to have GPU support.
+
+  To use it, add the following to your `config.exs`:
+
+  ```elixir
+  config :torus, embedding_module: Torus.Embeddings.PostgresML
+  ```
+
+  By default, it uses `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` to the config:
+
+  ```elixir
+  config :torus, Torus.Embeddings.PostgresML, model: "your/model"
+  ```
+
+  Read more about in [PostgresML](https://PostgresML.org/blog/semantic-search-in-postgres-in-15-minutes).
+
+  See `Torus.semantic/5` on how to use this module to introduce semantic search in your application.
   """
 
   @behaviour Torus.Embedding

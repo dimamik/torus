@@ -1,6 +1,6 @@
 defmodule Torus.QueryInspector do
   @moduledoc """
-  Helpers to debug your SQL queries. You can this module both while creating the
+  Helpers to debug your SQL queries. You can use this module both while creating the
   queries and directly in your running production shell once deployed, so that the
   explain analyze returns more accurate results.
   """

@@ -2,6 +2,53 @@ if Code.ensure_loaded?(Bumblebee) and Code.ensure_loaded?(Nx) do
   defmodule Torus.Embeddings.LocalNxServing do
     @moduledoc """
     Local embedding generator using local Hugging Face model with Bumblebee and Nx.Serving.
+
+    It allows you to generate embeddings on your local machine using a variety of models available on Hugging Face.
+
+    To use it:
+
+    - Add the following to your `config.exs`:
+
+      ```elixir
+      config :torus, embedding_module: Torus.Embeddings.LocalNxServing
+      ```
+
+    - Add `bumblebee` and `nx` to your `mix.exs` dependencies:
+
+      ```elixir
+      def deps do
+      [
+        {:bumblebee, "~> 0.6"},
+        {:nx, "~> 0.9"}
+      ]
+      end
+      ```
+
+    - Add it to your supervision tree:
+
+    Here you'd probably want to start it only on machines with GPU. See more info in [Nx Serving documentation](https://hexdocs.pm/nx/Nx.Serving.html)
+
+    ```elixir
+    def start(_type, _args) do
+      children = [
+        # Your deps
+        Torus.Embeddings.LocalNxServing
+      ]
+
+      opts = [strategy: :one_for_one, name: YourApp.Supervisor]
+      Supervisor.start_link(children, opts)
+    end
+    ```
+
+    You can pass all options directly to `Nx.Serving.start_link/1` function by passing them to `Torus.Embeddings.LocalNxServing` when starting.
+
+    By default, it uses `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` to the config:
+
+    ```elixir
+    config :torus, Torus.Embeddings.LocalNxServing, model: "your/model"
+    ```
+
+    See `Torus.semantic/5` on how to use this module to introduce semantic search in your application.
     """
 
     require Logger
