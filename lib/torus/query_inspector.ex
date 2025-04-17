@@ -1,6 +1,6 @@
 defmodule Torus.QueryInspector do
   @moduledoc """
-  Helpers to debug your SQL queries. You can this module both while creating the
+  Helpers to debug your SQL queries. You can use this module both while creating the
   queries and directly in your running production shell once deployed, so that the
   explain analyze returns more accurate results.
   """
@@ -27,7 +27,20 @@ defmodule Torus.QueryInspector do
   @spec tap_explain_analyze(Query.t(), Repo.t(), :all | :update_all | :delete_all) ::
           Query.t()
   def tap_explain_analyze(query, repo, kind \\ :all) do
-    tap(query, &(Ecto.Adapters.SQL.explain(repo, kind, &1, analyze: true) |> IO.puts()))
+    query
+    |> explain_analyze(repo, kind)
+    |> IO.puts()
+
+    query
+  end
+
+  @doc """
+  Returns explain analyze on the query.
+
+  **Runs the query!**
+  """
+  def explain_analyze(query, repo, kind \\ :all) do
+    Ecto.Adapters.SQL.explain(repo, kind, query, analyze: true)
   end
 
   @doc """

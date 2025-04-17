@@ -37,6 +37,7 @@ defmodule Torus.MixProject do
         source_ref: "v#{@version}",
         source_url: @source_url,
         extra_section: "GUIDES",
+        groups_for_modules: groups_for_modules(),
         formatters: ["html"],
         extras: extras(),
         skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
@@ -54,12 +55,30 @@ defmodule Torus.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_env), do: ["lib"]
 
+  defp groups_for_modules do
+    [
+      Embeddings: [
+        Torus.Embedding,
+        Torus.Embeddings.LocalNxServing,
+        Torus.Embeddings.OpenAI,
+        Torus.Embeddings.HuggingFace,
+        Torus.Embeddings.PostgresML,
+        Torus.Embeddings.Batcher
+      ]
+    ]
+  end
+
   defp deps do
     [
       {:ecto, "~> 3.0"},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ecto_sql, ">= 0.0.0", only: [:test, :dev], runtime: false},
-      {:postgrex, ">= 0.0.0", only: :test},
+      {:pgvector, "~> 0.3"},
+      {:postgrex, ">= 0.0.0"},
+      {:bumblebee, ">= 0.0.0", optional: true},
+      {:nx, ">= 0.0.0", optional: true},
+      {:req, ">= 0.0.0", optional: true},
+      {:exla, ">= 0.0.0", only: [:dev, :test]},
+      {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
+      {:ecto_sql, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
@@ -98,6 +117,8 @@ defmodule Torus.MixProject do
 
   defp extras do
     [
+      "guides/semantic_search.md",
+
       # TODO Add more guides
       "CHANGELOG.md": [title: "Changelog"]
     ]
