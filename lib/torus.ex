@@ -138,6 +138,14 @@ defmodule Torus do
     Torus.Search.PatternMatch.similar_to(query, bindings, qualifiers, term)
   end
 
+  @doc group: "Pattern matching"
+  @doc """
+  Removes all like/ilike special characters from the term, so it can be used in further pattern-match searches.
+  """
+  def sanitize(term) do
+    Torus.Search.PatternMatch.sanitize(term)
+  end
+
   # -----------------------------------
   # TODO: Add POSIX Regular Expressions
   # -----------------------------------

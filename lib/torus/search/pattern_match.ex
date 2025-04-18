@@ -54,4 +54,8 @@ defmodule Torus.Search.PatternMatch do
       where(unquote(query), ^unquote(where_ast))
     end
   end
+
+  def sanitize(term) when is_binary(term) do
+    String.replace(term, ~r/[%_\\]/u, "")
+  end
 end
