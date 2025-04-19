@@ -81,8 +81,7 @@ See `full_text/5` for more details.
 
    See `full_text/5` for more details.
 
-1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content, often utilizing natural language processing.
-   [Semantic Search with PostgreSQL and OpenAI Embeddings](https://towardsdatascience.com/semantic-search-with-postgresql-and-openai-embeddings-4d327236f41f)
+1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content utilizing natural language processing. Read more about semantic search in [Semantic search with Torus guide](/guides/semantic_search.md).
 
    ```elixir
    insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
