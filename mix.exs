@@ -74,6 +74,8 @@ defmodule Torus.MixProject do
       {:pgvector, "~> 0.3"},
       {:postgrex, ">= 0.0.0"},
       {:bumblebee, ">= 0.0.0", optional: true},
+      {:nebulex, ">= 0.0.0", optional: true},
+      {:decorator, ">= 0.0.0", optional: true},
       {:nx, ">= 0.0.0", optional: true},
       {:req, ">= 0.0.0", optional: true},
       {:exla, ">= 0.0.0", only: [:dev, :test]},

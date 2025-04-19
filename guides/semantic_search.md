@@ -215,11 +215,56 @@ To use it:
 
 And you should be good to call `Torus.to_vector/1` and `Torus.to_vectors/1` functions.
 
-### Torus.Embeddings.Cache
+### Torus.Embeddings.NebulexCache
 
-<!-- TODO: Implement cache -->
+`Torus.Embeddings.NebulexCache` is a wrapper around [Nebulex](https://hexdocs.pm/nebulex/readme.html) cache. It allows you to cache the embedding calls in memory, so you save the resources/cost of calling the embedding module multiple times for the same input.
 
-This module is not yet implemented, but the idea is to locally cache the embeddings before sending them to the `Torus.Embeddings.Batcher` module. We could leverage `Nebulex` library to do this.
+To use it:
+
+- Add the following to your `config.exs`:
+
+  ```elixir
+  config :torus, cache: Torus.Embeddings.NebulexCache
+  config :torus, Torus.Embeddings.NebulexCache,
+    embedding_module: Torus.Embeddings.PostgresML
+    cache: Nebulex.Cache,
+    otp_name: :your_app,
+    adapter: Nebulex.Adapters.Local,
+    # Other adapter-specific options
+    allocated_memory: 1_000_000_000, # 1GB
+
+  # Embedding module specific options
+  config :torus, Torus.Embeddings.PostgresML, repo: TorusExample.Repo
+  ```
+
+- Add `nebulex` and `decorator` to your `mix.exs` dependencies:
+
+  ```elixir
+  def deps do
+  [
+     {:nebulex, ">= 0.0.0"},
+     {:decorator, ">= 0.0.0"}
+  ]
+  end
+  ```
+
+- Add `Torus.Embeddings.NebulexCache` to your supervision tree:
+
+  ```elixir
+  def start(_type, _args) do
+    children = [
+      Torus.Embeddings.NebulexCache
+    ]
+
+    opts = [strategy: :one_for_one, name: YourApp.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+  ```
+
+See the [Nebulex documentation](https://hexdocs.pm/nebulex/Nebulex.html) for more information on how to configure the cache.
+
+And you're good to go now. As you can see, we can create a chain of embedding modules to compose the embedding process of our choice.
+Each of them should implement the `Torus.Embedding` behaviour, and we're good to go!
 
 ## 2. Storing the embeddings
 
