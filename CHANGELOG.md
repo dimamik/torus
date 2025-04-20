@@ -1,3 +1,7 @@
+# v0.4.1
+
+Minor doc updates
+
 # v0.4.0
 
 ## Breaking changes:
