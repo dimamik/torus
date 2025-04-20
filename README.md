@@ -52,7 +52,7 @@ See `full_text/5` for more details.
 
    See `like/5`, `ilike/5`, and `similar_to/5` for more details.
 
-1. **Similarity**: Searches for items that are closely alike based on attributes, often using measures like cosine similarity or Euclidean distance. Is great for fuzzy searching and ignoring typos in short texts.
+1. **Similarity:** Searches for records that closely match the input text, often using trigram or Levenshtein distance. Ideal for fuzzy matching and catching typos in short text fields.
 
    ```elixir
    iex> insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
@@ -91,7 +91,7 @@ See `full_text/5` for more details.
    embedding_vector = Torus.to_vector("A magic school in the UK")
 
    Post
-   |> Torus.full_text([p], p.embedding, embedding_vector)
+   |> Torus.semantic([p], p.embedding, embedding_vector)
    |> select([p], p.title)
    |> Repo.all()
    ["Diagon Bombshell"]

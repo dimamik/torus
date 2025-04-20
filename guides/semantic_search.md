@@ -24,7 +24,7 @@ Semantic search is a technology that understands the meaning behind words to del
 
 3. Compare the embedding of the search term with the embeddings of the data you want to search.
 
-   We'll do this using `Torus.similarity/5` function.
+   We'll do this using `Torus.semantic/5` function.
 
 Overall, our search will look like this:
 
@@ -38,6 +38,8 @@ def search(term) do
   |> Repo.all()
 end
 ```
+
+Note: You’ll need to join or preload the associated embeddings if they're stored in a separate table.
 
 ## 1. Generating embeddings
 
@@ -101,7 +103,7 @@ To use it:
   end
   ```
 
-- Add an API token for OpenAI to your `runtime.exs`. You can get your token [here](https://huggingface.co/settings/tokens).
+- Add an API token for OpenAI to your `runtime.exs`. You can get your token [here](https://platform.openai.com/account/api-keys).
 
   ```elixir
   config :torus, Torus.Embeddings.OpenAI, token: System.get_env("OPEN_AI_API_KEY")
@@ -115,7 +117,7 @@ config :torus, Torus.Embeddings.OpenAI, model: "your/model"
 
 ### Torus.Embeddings.PostgresML
 
-`Torus.Embeddings.PostgresML` uses the PostgreSQL [PostgresML extension](https://PostgresML.org/docs) to generate embeddings. It allows you to generate embeddings using a variety of models and performs inference directly in the database. This requires your database to have GPU support.
+`Torus.Embeddings.PostgresML` uses the PostgreSQL [PostgresML extension](https://postgresml.org/docs) to generate embeddings. It allows you to generate embeddings using a variety of models and performs inference directly in the database. This requires your database to have GPU support.
 
 To use it, add the following to your `config.exs`:
 
@@ -278,7 +280,7 @@ create table(:embeddings) do
   # filter by the newest later
   add :metadata, :jsonb, null: false, default: "{}"
   # Maybe more columns to differentiate this embedding from others?
-  # Actual embedding vector
+  # Actual embedding vector (384 dimensions for the `all-MiniLM-L6-v2` model)
   add :embedding, :vector, size: 384, null: false
 end
 ```
@@ -319,7 +321,7 @@ There are a few ways to handle the embedding process for new rows:
 
 ## 3. Searching
 
-We need to generate the embedding and then compare it with the embeddings in the database. This can be done using the `Torus.similarity/5` function.
+We need to generate the embedding and then compare it with the embeddings in the database. This can be done using the `Torus.semantic/5` function.
 
 ```elixir
 def search(term) do
