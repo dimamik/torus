@@ -3,7 +3,7 @@ defmodule Torus.Search.Similarity do
   import Torus.Search.Common
 
   @order_types ~w[asc desc none]a
-  @similarity_types ~w[word strict full]a
+  @similarity_types ~w[word_similarity similarity strict_word_similarity]a
   @true_false ~w[true false]a
 
   def similarity(query, bindings, qualifiers, term, opts \\ []) do
@@ -11,14 +11,14 @@ defmodule Torus.Search.Similarity do
     order = get_arg!(opts, :order, :desc, @order_types)
     pre_filter = get_arg!(opts, :pre_filter, false, @true_false)
     qualifiers = List.wrap(qualifiers)
-    similarity_type = get_arg!(opts, :type, :full, @similarity_types)
+    similarity_type = get_arg!(opts, :type, :word_similarity, @similarity_types)
 
     # Arguments preparation
     {similarity_function, similarity_operator} =
       case similarity_type do
-        :full -> {"similarity", "%"}
-        :strict -> {"strict_word_similarity", "<<%"}
-        :word -> {"word_similarity", "<%"}
+        :word_similarity -> {"word_similarity", "<%"}
+        :similarity -> {"similarity", "%"}
+        :strict_word_similarity -> {"strict_word_similarity", "<<%"}
       end
 
     desc_asc_string = parse_order(order)

@@ -59,11 +59,12 @@ defmodule Torus.MixProject do
     [
       Embeddings: [
         Torus.Embedding,
-        Torus.Embeddings.LocalNxServing,
-        Torus.Embeddings.OpenAI,
+        Torus.Embeddings.Batcher,
         Torus.Embeddings.HuggingFace,
-        Torus.Embeddings.PostgresML,
-        Torus.Embeddings.Batcher
+        Torus.Embeddings.LocalNxServing,
+        Torus.Embeddings.NebulexCache,
+        Torus.Embeddings.OpenAI,
+        Torus.Embeddings.PostgresML
       ]
     ]
   end

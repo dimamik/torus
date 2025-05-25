@@ -131,7 +131,8 @@ else
       raise @error_message
     end
 
-    def embedding_model(opts) do
+    @impl true
+    def embedding_model(_opts) do
       raise @error_message
     end
   end

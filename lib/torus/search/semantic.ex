@@ -2,8 +2,6 @@ defmodule Torus.Search.Semantic do
   @moduledoc false
   import Torus.Search.Common
 
-  @distance_types ~w[l2_distance max_inner_product cosine_distance l1_distance hamming_distance jaccard_distance]a
-
   @vector_operators_map %{
     l2_distance: "<->",
     max_inner_product: "<#>",
@@ -12,6 +10,8 @@ defmodule Torus.Search.Semantic do
     hamming_distance: "<~>",
     jaccard_distance: "<%>"
   }
+
+  @distance_types Map.keys(@vector_operators_map)
 
   @order_types ~w[asc desc none]a
 

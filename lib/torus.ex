@@ -152,11 +152,13 @@ defmodule Torus do
 
   @doc group: "Similarity"
   @doc """
-  Case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
+  Searches for records that closely match the input text using trigram distance. Ideal for fuzzy matching and catching typos in short text fields.
+
+  Implemented using case-insensitive similarity search using [PostgreSQL similarity functions](https://postgresql.org/docs/current/interactive/pgtrgm.html#PGTRGM-FUNCS-OPS).
 
   > #### Warning {: .neutral}
   >
-  > You need to have pg_trgm extension installed.
+  > You need to have `pg_trgm` extension installed.
   > ```elixir
   > defmodule YourApp.Repo.Migrations.CreatePgTrgmExtension do
   >   use Ecto.Migration
@@ -170,13 +172,17 @@ defmodule Torus do
   ## Options
 
     * `:type` - similarity type. Possible options are:
-      - `:full` (default) - uses `similarity` function.
-      - `:word` - uses `word_similarity` function. If you're dealing with sentences
-      and you don't want the length of the strings to affect the search result.
-      - `:strict` - uses `strict_word_similarity` function. Prioritizes full matches,
-      forces extent boundaries to match word boundaries. Since we don't have
-      cross-word trigrams, this function actually returns greatest similarity between
-      first string and any continuous extent of words of the second string.
+      - `:word_similarity` (default) - uses `pg_trgm` `word_similarity` function. Use
+      it if you're dealing with sentences and you don't want the length of the
+      strings to affect the search result.
+      - `:strict_word_similarity` - uses `strict_word_similarity` function.
+      Prioritizes full matches, forces extent boundaries to match word boundaries.
+      Since we don't have cross-word trigrams, this function actually returns
+      greatest similarity between first string and any continuous extent of words of
+      the second string.
+      - `:similarity` - uses `similarity` function. Compares the whole set of trigrams
+      instead of an ordered subset. Use this when you search for the exact phrase or a string,
+      not a word/phrase in a sentence/longer text.
     * `:order` - describes the ordering of the results. Possible values are
       - `:desc` (default) - orders the results by similarity rank in descending order.
       - `:asc` - orders the results by similarity rank in ascending order.
@@ -185,7 +191,8 @@ defmodule Torus do
       - `false` (default) - omits pre-filtering and returns all results.
       - `true` -  before applying the order, pre filters (using boolean
     operators which potentially use GIN indexes) the result set. The results above
-    `pg_trgm.similarity_threshold` (which defaults to 0.3) are returned.
+    `pg_trgm.{type}_threshold` are returned. It is advised to set the corresponding value to `0.3` so that more relevant results are returned.
+    For example, for `word_similarity`, we'd run `SET pg_trgm.word_similarity_threshold = 0.3;`.
 
   ## Examples
 
@@ -201,10 +208,10 @@ defmodule Torus do
 
       iex> insert_posts!(["Wand", "Owl", "What an amazing cloak"])
       ...> Post
-      ...> |> Torus.similarity([p], [p.title], "what a cloak", pre_filter: true)
+      ...> |> Torus.similarity([p], [p.title], "owls", pre_filter: true)
       ...> |> select([p], p.title)
       ...> |> Repo.all()
-      ["What an amazing cloak"]
+      ["Owl"]
 
   ## Optimizations
 
@@ -212,10 +219,10 @@ defmodule Torus do
   This would significantly reduce the number of rows to order. The pre-filtering
   phase uses different (boolean) similarity operators which more actively leverage
   GIN indexes.
-  - Limit the number of raws returned using `limit`.
   - Use `order: :none` argument if you don't care about the order of the results.
   The query will return all results that are above the similarity threshold, which
-  you can set globally via `SET pg_trgm.similarity_threshold = 0.3;`.
+  you can set globally via `SET pg_trgm.{type}_threshold = 0.3;`, replacing type
+  with your `type` option (e.g. `word_similarity_threshold`).
   - When `order: :desc` (default) and the limit is not set, the query will do a full
   table scan, so it's recommended to manually limit the results (by applying `where`
   or `limit` clauses to filter the rows as much as possible).
@@ -223,6 +230,7 @@ defmodule Torus do
   ### Adding an index
 
   ```sql
+  -- If you haven't created it yet
   CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
   CREATE INDEX index_posts_on_title ON posts USING GIN (title gin_trgm_ops);
@@ -257,7 +265,7 @@ defmodule Torus do
     * `:prefix_search` - whether to apply prefix search.
       - `true` (default) - the term is treated as a prefix
       - `false` - only counts full-word matches
-    * `:stored`
+    * `:stored` - whether to use stored tsvector or not.
       - `false` (default) - columns (or expressions) passed as qualifiers are of type `text`
       - `true` - columns (or expressions) passed as qualifiers are **tsvectors**
     * `:language` - language used for the search. Defaults to `"english"`.
@@ -302,19 +310,19 @@ defmodule Torus do
       - `:desc` (default) - orders the results by similarity rank in descending order.
       - `:asc` - orders the results by similarity rank in ascending order.
       - `:none` - doesn't apply ordering at all.
-    * `:filter_type`
+    * `:filter_type` - filter type
       - `:or` (default) - uses `OR` operator to combine different column matches.
       Selecting this option means that the search term won't match across columns.
       - `:concat` - joins the columns into a single tsvector and searches for the
       term in the concatenated string containing all columns.
       - `:none` - doesn't apply any filtering and returns all results.
-    * `empty_return`
+    * `empty_return` - whether to return all results when the search term is empty.
       - `true` (default) - returns all results when the search term is empty.
       - `false` - returns an empty list when the search term is empty.
-    * `:coalesce`
-      - `true` (default) - when joining columns via `:concat` option, adds a
-      `COALESCE` function to handle NULL values. Choose this when you can't guarantee
-      that all columns are non-null.
+    * `:coalesce` - when joining columns via `:concat` option, adds a
+    `COALESCE` function to handle NULL values. Choose true when you can't guarantee
+    that all columns are non-null.
+      - `true` (default)- adds `COALESCE`
       - `false` - doesn't add `COALESCE` function to the query. Choose this when you're
       using `filter_type: :concat` and can guarantee that all columns are non-null.
 
@@ -405,35 +413,6 @@ defmodule Torus do
 
   @doc group: "Semantic"
   @doc """
-  Takes a list of terms (binaries) and embedding module's specific options and passes them to `embedding_module` `generate/2` function.
-
-  Configure `embedding_module` either in `config.exs`:
-
-        config :torus, :embedding_module, Torus.Embeddings.HuggingFace
-
-  or pass `embedding_module` as an option to `to_vectors/2` function. Options always
-  have greater priority than the config.
-
-  See [Semantic search guide](semantic_search.html) for more info.
-  """
-  defdelegate to_vectors(terms, opts \\ []), to: Torus.Search.Semantic
-
-  @doc group: "Semantic"
-  @doc """
-  Same as `to_vectors/2`, but returns the first vector from the list.
-  """
-  defdelegate to_vector(term, opts \\ []), to: Torus.Search.Semantic
-
-  @doc group: "Semantic"
-  @doc """
-  Calls the specified embedding module's `embedding_model/1` function to retrieve the model name.
-
-  See [Semantic search guide](semantic_search.html) for more info.
-  """
-  defdelegate embedding_model(opts \\ []), to: Torus.Search.Semantic
-
-  @doc group: "Semantic"
-  @doc """
   Semantic search using pgvector extension to compare vectors. See [Semantic search guide](semantic_search.html) for more info.
 
   ## Options
@@ -461,8 +440,62 @@ defmodule Torus do
         |> Torus.semantic([p], p.embedding, search_vector)
         |> Repo.all()
       end
+
+  ## Optimizations
+  - Use `pre_filter` to pre-filter the results before applying the order. This would significantly reduce the number of rows to order.
+  - Index embeddings column:
+
+      - HNSW (Hierarchical Navigable Small World) - High-accuracy Approximate Nearest
+      Neighbor
+        ```sql
+        CREATE INDEX ON embeddings USING hnsw (embedding vector_l2_ops) WITH (m = 16, ef_construction = 200);
+        ```
+
+      - IVFFlat Index (Approximate Nearest Neighbor) with different similarity
+      functions. Prior to index creation, it's recommended to have some real data in place, so the quality of clusters is better.
+        - Cosine Similarity
+          ```sql
+          CREATE INDEX ON embeddings USING ivfflat (embedding vector_cosine_ops);
+          ```
+        - L2 Distance
+          ```sql
+          CREATE INDEX ON embeddings USING ivfflat (embedding vector_l2_ops);
+          ```
+        - Inner Product
+          ```sql
+          CREATE INDEX ON embeddings USING ivfflat (embedding vector_ip_ops);
+          ```
   """
   defmacro semantic(query, bindings, qualifier, vector_term, opts \\ []) do
     Torus.Search.Semantic.semantic(query, bindings, qualifier, vector_term, opts)
   end
+
+  @doc group: "Semantic"
+  @doc """
+  Takes a list of terms (binaries) and embedding module's specific options and passes them to `embedding_module` `generate/2` function.
+
+  Configure `embedding_module` either in `config.exs`:
+
+        config :torus, :embedding_module, Torus.Embeddings.HuggingFace
+
+  or pass `embedding_module` as an option to `to_vectors/2` function. Options always
+  have greater priority than the config.
+
+  See [Semantic search guide](semantic_search.html) for more info.
+  """
+  defdelegate to_vectors(terms, opts \\ []), to: Torus.Search.Semantic
+
+  @doc group: "Semantic"
+  @doc """
+  Same as `to_vectors/2`, but returns the first vector from the list.
+  """
+  defdelegate to_vector(term, opts \\ []), to: Torus.Search.Semantic
+
+  @doc group: "Semantic"
+  @doc """
+  Calls the specified embedding module's `embedding_model/1` function to retrieve the model name.
+
+  See [Semantic search guide](semantic_search.html) for more info.
+  """
+  defdelegate embedding_model(opts \\ []), to: Torus.Search.Semantic
 end
