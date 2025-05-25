@@ -35,7 +35,7 @@ Post
 ["Uncovered hogwarts"]
 ```
 
-See `full_text/5` for more details.
+See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more details.
 
 ## 6 types of search:
 
@@ -50,7 +50,7 @@ See `full_text/5` for more details.
    ["Wand"]
    ```
 
-   See `like/5`, `ilike/5`, and `similar_to/5` for more details.
+   See [`like/5`](https://hexdocs.pm/torus/Torus.html#like/5), [`ilike/5`](https://hexdocs.pm/torus/Torus.html#ilike/5), and [`similar_to/5`](https://hexdocs.pm/torus/Torus.html#similar_to/5) for more details.
 
 1. **Similarity:** Searches for records that closely match the input text, often using trigram or Levenshtein distance. Ideal for fuzzy matching and catching typos in short text fields.
 
@@ -64,7 +64,7 @@ See `full_text/5` for more details.
    ["Hogwarts Secrets", "Hogwart’s Secret"]
    ```
 
-   See `similarity/5` for more details.
+   See [`similarity/5`](https://hexdocs.pm/torus/Torus.html#similarity/5) for more details.
 
 1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling efficient querying and ranking based on term frequency. - [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html). Is great for large datasets to quickly return relevant results.
 
@@ -79,7 +79,7 @@ See `full_text/5` for more details.
    ["Diagon Bombshell"]
    ```
 
-   See `full_text/5` for more details.
+   See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more details.
 
 1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content utilizing natural language processing. Read more about semantic search in [Semantic search with Torus guide](/guides/semantic_search.md).
 
@@ -97,7 +97,7 @@ See `full_text/5` for more details.
    ["Diagon Bombshell"]
    ```
 
-   See `semantic/5` for more details.
+   See [`semantic/5`](https://hexdocs.pm/torus/Torus.html#semantic/5) for more details.
 
 1. **Hybrid Search**: Combines multiple search techniques (e.g., keyword and semantic) to leverage their strengths for more accurate results.
 
@@ -113,7 +113,7 @@ Torus is designed to be as efficient and relevant as possible from the start. Bu
 2. Test its performance on real production data - maybe it's good enough already?
 3. If it's not:
    - See optimization sections for your search type in `Torus` docs
-   - Inspect your query using `Torus.QueryInspector.tap_substituted_sql/3` or `Torus.QueryInspector.tap_explain_analyze/3`
+   - Inspect your query using [`Torus.QueryInspector.tap_substituted_sql/3`](https://hexdocs.pm/torus/Torus.QueryInspector.html#tap_substituted_sql/3) or [`Torus.QueryInspector.tap_explain_analyze/3`](https://hexdocs.pm/torus/Torus.QueryInspector.html#tap_explain_analyze/3)
    - According to the above SQL - add indexes for the queried rows/vectors
 
 ## Debugging your queries
