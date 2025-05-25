@@ -1,3 +1,9 @@
+# v0.5.0
+
+- Similarity search type now defaults to `:word_similarity` instead of `similarity`. 
+- Possible `similarity/5` search types are updated to be prefixed with `similarity` to replicate 1-1 these in `pg_trgm` extension.
+- Extended optimization section in the docs
+
 # v0.4.1
 
 Minor doc updates
@@ -17,7 +23,7 @@ Minor doc updates
 ## New 🔥
 
 **Semantic search** is finally here! Read more about it in the [Semantic search with Torus](/guides/semantic_search.md) guide.
-  Shortly - it allows you to generate embeddings using a configurable adapters and use them to compare against the ones stored in your database.
+Shortly - it allows you to generate embeddings using a configurable adapters and use them to compare against the ones stored in your database.
 
 Supported adapters (for now):
 

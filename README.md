@@ -16,7 +16,7 @@ The package can be installed by adding `torus` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:torus, "~> 0.4"}
+    {:torus, "~> 0.5"}
   ]
 end
 ```
