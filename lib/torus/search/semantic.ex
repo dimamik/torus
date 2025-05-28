@@ -21,6 +21,13 @@ defmodule Torus.Search.Semantic do
     order = get_arg!(opts, :order, :asc, @order_types)
     operator = Map.fetch!(@vector_operators_map, distance)
     pre_filter = Keyword.get(opts, :pre_filter, :none)
+    order_operator = if order == :desc, do: ">", else: "<"
+    distance_key = Keyword.get(opts, :distance_key, :none)
+
+    # Validations
+    if not is_atom(distance_key) do
+      raise "The `distance_key` option must be an atom."
+    end
 
     # Query building
     quote do
@@ -39,8 +46,11 @@ defmodule Torus.Search.Semantic do
           where(
             query,
             [unquote_splicing(bindings)],
-            operator(unquote(qualifier), unquote(operator), ^unquote(vector_term)) <
+            operator(
+              operator(unquote(qualifier), unquote(operator), ^unquote(vector_term)),
+              unquote(order_operator),
               unquote(pre_filter)
+            )
           )
         end
       )
@@ -51,6 +61,19 @@ defmodule Torus.Search.Semantic do
           {unquote(order), operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))}
         )
       end)
+      |> apply_if(
+        unquote(distance_key) != :none,
+        fn query ->
+          select_merge(
+            query,
+            [unquote_splicing(bindings)],
+            %{
+              unquote(distance_key) =>
+                operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))
+            }
+          )
+        end
+      )
     end
   end
 

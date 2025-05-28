@@ -430,6 +430,11 @@ defmodule Torus do
     * `:pre_filter` - a positive float that is passed directly to the query to pre-filter the results.
       - `:none` (default) - no pre-filtering is done.
       - `float` - pre-filters the results before applying the order. The results with vectors distance below the pre-filter value are returned.
+    * `:distance_key` - pass an atom to put the selected distance under in the result
+    map. If you intend to use other option then `:none`, you need to use
+    `select_merge/3` in your query going forward so that the distance is appended to the map.
+      - `:none` (default) - the distance is not selected.
+      - `atom` - the map key the distance is put under.
 
   ## Examples
 
