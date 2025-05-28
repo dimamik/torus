@@ -78,10 +78,11 @@ To use it:
 - Add an API token for Hugging Face to your `runtime.exs`. You can get your token [here](https://huggingface.co/settings/tokens).
 
   ```elixir
+  # `config/runtime.exs`
   config :torus, Torus.Embeddings.HuggingFace, token: System.get_env("HUGGING_FACE_API_KEY")
   ```
 
-By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration:
+By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
 
 ```elixir
 config :torus, Torus.Embeddings.HuggingFace, model: "your/model"
@@ -115,7 +116,7 @@ To use it:
   config :torus, Torus.Embeddings.OpenAI, token: System.get_env("OPEN_AI_API_KEY")
   ```
 
-By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration:
+By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
 
 ```elixir
 config :torus, Torus.Embeddings.OpenAI, model: "your/model"
@@ -132,7 +133,7 @@ config :torus, embedding_module: Torus.Embeddings.PostgresML
 config :torus, Torus.Embeddings.PostgresML, repo: YourApp.Repo
 ```
 
-By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration:
+By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
 
 ```elixir
 config :torus, Torus.Embeddings.PostgresML, model: "your/model"
@@ -196,7 +197,7 @@ To use it:
 - Add the following to your `config.exs`:
 
   ```elixir
-  config :torus, batcher: Torus.Embeddings.Batcher
+  config :torus, embedding_module: Torus.Embeddings.Batcher
 
   config :torus, Torus.Embeddings.Batcher,
     max_batch_size: 10,
@@ -231,7 +232,7 @@ To use it:
 - Add the following to your `config.exs`:
 
   ```elixir
-  config :torus, cache: Torus.Embeddings.NebulexCache
+  config :torus, embedding_module: Torus.Embeddings.NebulexCache
   config :torus, Torus.Embeddings.NebulexCache,
     embedding_module: Torus.Embeddings.PostgresML,
     cache: Nebulex.Cache,
@@ -276,9 +277,18 @@ And you're good to go. As you can see, you can create a chain of embedding modul
 
 To implement your own embedding module, you can start off with copying the existing one and tailoring it to your needs. See [`Torus.Embeddings.HuggingFace`](https://github.com/dimamik/torus/blob/main/lib/torus/embeddings/hugging_face.ex) for more details.
 
-Ideally, in the end, you'd have a chain like this:
+### Recommended pipeline
+
+Ideally, in the end, you'd have a chain like this by passing the `NebulexCache` as `embedding_module` to `:torus` and then stacking embedders on top of each other:
 
 ![Chain of embeddings](img/embedders_pipeline.png)
+
+```elixir
+# config.exs
+config :torus, embedding_module: Torus.Embeddings.NebulexCache
+config :torus, Torus.Embeddings.NebulexCache, embedding_module: Torus.Embeddings.Batcher
+config :torus, Torus.Embeddings.Batcher, embedding_module: Torus.Embeddings.HuggingFace
+```
 
 ## 2. Storing the embeddings
 
