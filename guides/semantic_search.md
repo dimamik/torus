@@ -88,6 +88,41 @@ By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you 
 config :torus, Torus.Embeddings.HuggingFace, model: "your/model"
 ```
 
+### Torus.Embeddings.Gemini
+
+`Torus.Embeddings.Gemini` is a wrapper around the Gemini API.
+
+To use it:
+
+- Add the following to your `config.exs`:
+
+  ```elixir
+  config :torus, embedding_module: Torus.Embeddings.Gemini
+  ```
+
+- Add `req` to your `mix.exs` dependencies:
+
+  ```elixir
+  def deps do
+  [
+    {:req, "~> 0.5"}
+  ]
+  end
+  ```
+
+- Add an API token for Hugging Face to your `runtime.exs`. You can get your token [here](https://aistudio.google.com/app/apikey).
+
+  ```elixir
+  # `config/runtime.exs`
+  config :torus, Torus.Embeddings.Gemini, token: System.get_env("GEMINI_API_KEY")
+  ```
+
+By default, it uses the `text-embedding-004` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
+
+```elixir
+config :torus, Torus.Embeddings.Gemini, model: "your/model"
+```
+
 ### Torus.Embeddings.OpenAI
 
 `Torus.Embeddings.OpenAI` is a wrapper around the OpenAI API. It allows you to generate embeddings using OpenAI models.

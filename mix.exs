@@ -57,15 +57,7 @@ defmodule Torus.MixProject do
 
   defp groups_for_modules do
     [
-      Embeddings: [
-        Torus.Embedding,
-        Torus.Embeddings.Batcher,
-        Torus.Embeddings.HuggingFace,
-        Torus.Embeddings.LocalNxServing,
-        Torus.Embeddings.NebulexCache,
-        Torus.Embeddings.OpenAI,
-        Torus.Embeddings.PostgresML
-      ]
+      Embeddings: [~r/^Torus.Embedding/]
     ]
   end
 
