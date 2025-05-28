@@ -1,7 +1,14 @@
+# v0.5.1
+
+- Adds `Torus.Embeddings.Gemini` to support Gemini embeddings.
+- Extends semantic search docs on how to stack embedders
+- Adds `:distance_key` option to `Torus.semantic/5` to allow selecting distance key to the result map. Later on we'll rely on this to support hybrid search.
+- Correctly swaps `>` and `<` operators for pre-filtering when changing order in `Torus.semantic/5` search.
+
 # v0.5.0
 
-- Similarity search type now defaults to `:word_similarity` instead of `similarity`. 
-- Possible `similarity/5` search types are updated to be prefixed with `similarity` to replicate 1-1 these in `pg_trgm` extension.
+- Similarity search type now defaults to `:word_similarity` instead of `similarity`.
+- Possible `Torus.similarity/5` search types are updated to be prefixed with `similarity` to replicate 1-1 these in `pg_trgm` extension.
 - Extended optimization section in the docs
 
 # v0.4.1
@@ -12,12 +19,12 @@ Minor doc updates
 
 ## Breaking changes:
 
-- `full_text/5` - now returns all results when search term contains a stop word or is empty instead of returning none.
+- `Torus.full_text/5` - now returns all results when search term contains a stop word or is empty instead of returning none.
 
 ## Improvements:
 
-- `full_text/5` - now supports `:empty_return` option that controls if the query should return all results when search term contains a stop word or is empty.
-- `tap_explain_analyze/3` - now correctly returns the query plan.
+- `Torus.full_text/5` - now supports `:empty_return` option that controls if the query should return all results when search term contains a stop word or is empty.
+- `Torus.QueryInspector.tap_explain_analyze/3` - now correctly returns the query plan.
 - Docs were grouped together by the search type.
 
 ## New 🔥
