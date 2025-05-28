@@ -4,7 +4,13 @@ This guide will walk you through adding semantic search to your application usin
 
 ## Initial requirements
 
-Your app needs to use PostgreSQL and Ecto, and you should be comfortable storing and comparing embedded vectors in PostgreSQL.
+Your app needs to use PostgreSQL and Ecto, and you should be comfortable storing and comparing embedded vectors in PostgreSQL using `pgvector` extension.
+
+Before you start, make sure you have `pgvector` extension installed:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
 
 ## Getting started
 
@@ -265,6 +271,14 @@ To use it:
 See the [Nebulex documentation](https://hexdocs.pm/nebulex/Nebulex.html) for more information on how to configure the cache.
 
 And you're good to go. As you can see, you can create a chain of embedding modules to compose an embedding process of your choice. Each of them should implement the `Torus.Embedding` behaviour, and you're all set!
+
+### Your custom embedding implementing `Torus.Embedding`
+
+To implement your own embedding module, you can start off with copying the existing one and tailoring it to your needs. See [`Torus.Embeddings.HuggingFace`](https://github.com/dimamik/torus/blob/main/lib/torus/embeddings/hugging_face.ex) for more details.
+
+Ideally, in the end, you'd have a chain like this:
+
+![Chain of embeddings](img/embedders_pipeline.png)
 
 ## 2. Storing the embeddings
 
