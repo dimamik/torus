@@ -44,15 +44,17 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
    ```elixir
    iex> insert_posts!(["Wand", "Magic wand", "Owl"])
    ...> Post
-   ...> |> Torus.ilike([p], [p.title], "wan%")
+   ...> |> Torus.similar_to([p], [p.title], "(Wan|Ow)%")
    ...> |> select([p], p.title)
    ...> |> Repo.all()
-   ["Wand"]
+   ["Wand", "Owl"]
    ```
+
+   Use it for fast prefix-search when semantics of the data you search through live in its characters. For example phone number, invoice number, email, filename, etc.
 
    See [`like/5`](https://hexdocs.pm/torus/Torus.html#like/5), [`ilike/5`](https://hexdocs.pm/torus/Torus.html#ilike/5), and [`similar_to/5`](https://hexdocs.pm/torus/Torus.html#similar_to/5) for more details.
 
-1. **Similarity:** Searches for records that closely match the input text, often using trigram or Levenshtein distance. Ideal for fuzzy matching and catching typos in short text fields.
+1. **Similarity:** Searches for records that closely match the input text using trigram distance.
 
    ```elixir
    iex> insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
@@ -64,9 +66,11 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
    ["Hogwarts Secrets", "Hogwart’s Secret"]
    ```
 
+   Use it for fuzzy matching and catching typos in short text fields, such as names or titles. Works best with short strings.
+
    See [`similarity/5`](https://hexdocs.pm/torus/Torus.html#similarity/5) for more details.
 
-1. **Text Search Vectors**: Uses term-document matrix vectors for **full-text search**, enabling efficient querying and ranking based on term frequency. - [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html). Is great for large datasets to quickly return relevant results.
+1. **Full text**: Uses term-document matrix vectors for, enabling efficient querying and ranking based on term frequency. Supports prefix search and is great for large datasets to quickly return relevant results. See [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) for internal implementation details.
 
    ```elixir
    iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
@@ -78,6 +82,8 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
    ...> |> Repo.all()
    ["Diagon Bombshell"]
    ```
+
+   Use it when you don’t care about spelling, the documents are long, or if you need to order the results by rank.
 
    See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more details.
 
@@ -96,6 +102,8 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
    |> Repo.all()
    ["Diagon Bombshell"]
    ```
+
+   Use it when you need to understand intent and handle synonyms.
 
    See [`semantic/5`](https://hexdocs.pm/torus/Torus.html#semantic/5) for more details.
 
