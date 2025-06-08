@@ -40,7 +40,7 @@ if Code.ensure_loaded?(Req) do
 
     @behaviour Torus.Embedding
     @default_model "sentence-transformers/all-MiniLM-L6-v2"
-    @base_url "https://api-inference.huggingface.co/pipeline/feature-extraction"
+    @base_url "https://router.huggingface.co/hf-inference/models"
 
     @impl true
     def generate(terms, opts \\ []) when is_list(terms) do
@@ -51,7 +51,7 @@ if Code.ensure_loaded?(Req) do
         |> Application.fetch_env!(__MODULE__)
         |> Keyword.fetch!(:token)
 
-      url = "#{@base_url}/#{model}"
+      url = "#{@base_url}/#{model}/pipeline/feature-extraction"
 
       headers = [
         {"authorization", "Bearer #{token}"},
