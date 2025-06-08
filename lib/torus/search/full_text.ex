@@ -50,7 +50,6 @@ defmodule Torus.Search.FullText do
     # Arguments preparation
     prefix_string = prefix_search_string(prefix_search)
     desc_asc = parse_order(order)
-    has_order = order != :none
 
     weighted_columns = prepare_weights(qualifiers, stored, language, rank_weights, coalesce)
 
@@ -141,7 +140,7 @@ defmodule Torus.Search.FullText do
             where(unquote(query), [unquote_splicing(bindings)], unquote(concat_filter_fragment))
         end
       )
-      |> apply_if(unquote(has_order), fn query ->
+      |> apply_if(unquote(order) != :none, fn query ->
         order_by(query, [unquote_splicing(bindings)], unquote(order_fragment))
       end)
     end

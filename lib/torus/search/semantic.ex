@@ -29,6 +29,11 @@ defmodule Torus.Search.Semantic do
       raise "The `distance_key` option must be an atom."
     end
 
+    # Since we need to generate a valid macro - we need to "trick" it to think that
+    # we'll pass `asc`/`desc` instead of `:none`
+    # This is temporary, until we'll generate raw strings
+    asc_desc = if order == :desc, do: :desc, else: :asc
+
     # Query building
     quote do
       if not is_struct(unquote(vector_term), Pgvector) do
@@ -58,7 +63,8 @@ defmodule Torus.Search.Semantic do
         order_by(
           query,
           [unquote_splicing(bindings)],
-          {unquote(order), operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))}
+          {unquote(asc_desc),
+           operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))}
         )
       end)
       |> apply_if(

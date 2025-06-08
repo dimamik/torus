@@ -24,7 +24,6 @@ defmodule Torus.Search.Similarity do
     desc_asc_string = parse_order(order)
     similarity_function = "#{similarity_function}(?, ?) #{desc_asc_string}"
     multiple_qualifiers = length(qualifiers) > 1
-    has_order = order != :none
 
     # Query building
     quote do
@@ -43,14 +42,14 @@ defmodule Torus.Search.Similarity do
           operator(^unquote(term), unquote(similarity_operator), unquote(List.first(qualifiers)))
         )
       end)
-      |> apply_if(unquote(has_order) and unquote(multiple_qualifiers), fn query ->
+      |> apply_if(unquote(order) != :none and unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
           fragment(unquote(similarity_function), ^unquote(term), concat_ws(unquote(qualifiers)))
         )
       end)
-      |> apply_if(unquote(has_order) and not unquote(multiple_qualifiers), fn query ->
+      |> apply_if(unquote(order) != :none and not unquote(multiple_qualifiers), fn query ->
         order_by(
           query,
           [unquote_splicing(bindings)],
