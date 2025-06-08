@@ -64,6 +64,7 @@ defmodule Torus.MixProject do
   defp deps do
     [
       {:ecto, "~> 3.0"},
+      {:ecto_sql, "~> 3.0"},
       {:pgvector, "~> 0.3"},
       {:postgrex, ">= 0.0.0"},
       {:bumblebee, ">= 0.0.0", optional: true},
@@ -73,7 +74,6 @@ defmodule Torus.MixProject do
       {:req, ">= 0.0.0", optional: true},
       {:exla, ">= 0.0.0", only: [:dev, :test]},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:ecto_sql, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
