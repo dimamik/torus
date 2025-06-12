@@ -421,8 +421,8 @@ defmodule Torus do
       - `:max_inner_product` - negative inner product
       - `:cosine_distance` - cosine distance
       - `:l1_distance` - L1 distance
-      - `:hamming_distance` - Hamming distance
-      - `:jaccard_distance` - Jaccard distance
+      - `:hamming_distance` - (binary vectors only) Hamming distance
+      - `:jaccard_distance` - (binary vectors only) Jaccard distance
     * `:order` - describes the ordering of the results. Possible values are
       - `:asc` (default) - orders the results by distance in ascending order. 0 distance means that the vectors are the same meaning the the terms are equal. The closer the vectors - more aligned are the terms.
       - `:desc` - orders the results by distance in descending order.
