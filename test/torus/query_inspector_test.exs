@@ -9,11 +9,15 @@ defmodule Torus.QueryInspectorTest do
   end
 
   test "substituted_sql/2 - complex substitution" do
-    assert "SELECT p0.\"id\", p0.\"title\", p0.\"body\", p0.\"author_id\" FROM \"posts\" AS p0 WHERE (p0.\"id\" = 1) AND (p0.\"title\" IN ('hello','world'))" =
+    int_array = [1, 2]
+    binary_array = ["hello", "world"]
+
+    assert "SELECT p0.\"id\", p0.\"title\", p0.\"body\", p0.\"author_id\" FROM \"posts\" AS p0 WHERE (p0.\"id\" = ANY(ARRAY[1,2])) AND (p0.\"title\" = ANY(ARRAY['hello','world'])) AND ((p0.\"title\" ILIKE 'test%') OR 'false')" =
              Post
-             |> where(id: 1)
-             |> where([p], p.title in ~w(hello world))
-             |> Torus.QueryInspector.substituted_sql(Torus.Test.Repo)
+             |> where([p], p.id in ^int_array)
+             |> where([p], p.title in ^binary_array)
+             |> Torus.ilike([p], p.title, "test%")
+             |> Torus.QueryInspector.substituted_sql(Repo)
   end
 
   test "explain_analyze/2 - default" do
