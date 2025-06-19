@@ -1,3 +1,17 @@
+# v0.5.2
+
+## New 🔥
+
+- New [demo page](https://torus.dimamik.com) where you can explore different search types and their options. It also includes semantic search, so if you're hesitant - go check it out!
+- Other documentation improvements
+
+## Fixes
+
+- Correctly handles `order: :none` in `Torus.semantic/5` search.
+- Updates `Torus.Embeddings.HuggingFace` to point to the updated feature extraction endpoint.
+- Suppresses warnings for missing `ecto_sql` dependency by adding it to the required dependencies. Most of us already had it, but now it'll be explicit.
+- Correctly parses an array of integers in `Torus.QueryInspector.substituted_sql/3` and `Torus.QueryInspector.tap_substituted_sql/3`. Now we should be able to handle all possible query variations.
+
 # v0.5.1
 
 - Adds `Torus.Embeddings.Gemini` to support Gemini embeddings.

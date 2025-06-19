@@ -1,7 +1,7 @@
 defmodule Torus.MixProject do
   use Mix.Project
 
-  @version "0.5.1"
+  @version "0.5.2"
   @source_url "https://github.com/dimamik/torus"
 
   def project do
