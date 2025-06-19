@@ -4,10 +4,11 @@
 [![License](https://img.shields.io/hexpm/l/torus.svg)](https://github.com/dimamik/torus/blob/main/LICENSE)
 [![Version](https://img.shields.io/hexpm/v/torus.svg)](https://hex.pm/packages/torus)
 [![Hex Docs](https://img.shields.io/badge/documentation-gray.svg)](https://hexdocs.pm/torus)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-online-brightgreen?logo=bolt&logoColor=white)](https://torus.dimamik.com)
 
 <!-- MDOC -->
 
-Torus is a plug-and-play Elixir library that seamlessly integrates PostgreSQL's search into Ecto, streamlining the construction of advanced search queries.
+Torus is a plug-and-play Elixir library that seamlessly integrates PostgreSQL's search into Ecto, streamlining the construction of advanced search queries. See [live demo](https://torus.dimamik.com) for examples.
 
 ## Usage
 
@@ -70,7 +71,7 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
    See [`similarity/5`](https://hexdocs.pm/torus/Torus.html#similarity/5) for more details.
 
-1. **Full text**: Uses term-document matrix vectors for, enabling efficient querying and ranking based on term frequency. Supports prefix search and is great for large datasets to quickly return relevant results. See [PostgreSQL: Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) for internal implementation details.
+1. **Full text**: Uses term-document matrix vectors for, enabling efficient querying and ranking based on term frequency. Supports prefix search and is great for large datasets to quickly return relevant results. See [PostgreSQL Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) for internal implementation details.
 
    ```elixir
    iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
@@ -120,13 +121,13 @@ Torus is designed to be as efficient and relevant as possible from the start. Bu
 1. Create a query that returns as relevant results as possible (by tweaking the options of search function). If there is any option missing - feel free to open an issue/contribute back with it, or implement it manually using fragments.
 2. Test its performance on real production data - maybe it's good enough already?
 3. If it's not:
-   - See optimization sections for your search type in `Torus` docs
+   - See optimization sections for your search type in [`Torus`](https://hexdocs.pm/torus/Torus.html) docs
    - Inspect your query using [`Torus.QueryInspector.tap_substituted_sql/3`](https://hexdocs.pm/torus/Torus.QueryInspector.html#tap_substituted_sql/3) or [`Torus.QueryInspector.tap_explain_analyze/3`](https://hexdocs.pm/torus/Torus.QueryInspector.html#tap_explain_analyze/3)
    - According to the above SQL - add indexes for the queried rows/vectors
 
 ## Debugging your queries
 
-Torus offers a few helpers to debug, explain, and analyze your queries before using them on production. See `Torus.QueryInspector` for more details.
+Torus offers a few helpers to debug, explain, and analyze your queries before using them on production. See [`Torus.QueryInspector`](https://hexdocs.pm/torus/Torus.QueryInspector.html) for more details.
 
 ## Torus support
 

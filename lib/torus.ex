@@ -19,6 +19,7 @@ defmodule Torus do
   >
   > Doesn't clean the term, so it needs to be sanitized before being passed in. See
   [LIKE-injections](https://githubengineering.com/like-injection/).
+  You can use `Torus.sanitize/1` to clean the term.
 
   ## Examples
 
@@ -60,6 +61,7 @@ defmodule Torus do
   >
   > Doesn't clean the term, so it needs to be sanitized before being passed in. See
   [LIKE-injections](https://githubengineering.com/like-injection/).
+  You can use `Torus.sanitize/1` to clean the term.
 
   ## Examples
 
@@ -141,6 +143,11 @@ defmodule Torus do
   @doc group: "Pattern matching"
   @doc """
   Removes all like/ilike special characters from the term, so it can be used in further pattern-match searches.
+
+  ## Examples
+
+      iex> Torus.sanitize(~S"%_\\realterm%")
+      "realterm"
   """
   def sanitize(term) do
     Torus.Search.PatternMatch.sanitize(term)

@@ -316,7 +316,7 @@ To implement your own embedding module, you can start off with copying the exist
 
 Ideally, in the end, you'd have a chain like this by passing the `NebulexCache` as `embedding_module` to `:torus` and then stacking embedders on top of each other:
 
-![Chain of embeddings](img/embedders_pipeline.png)
+![Chain of embeddings](https://raw.githubusercontent.com/dimamik/torus/1cf622a03cfcb1bffd70329e01462aa594bfed19/guides/img/embedders_pipeline.png)
 
 ```elixir
 # config.exs

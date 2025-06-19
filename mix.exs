@@ -13,22 +13,11 @@ defmodule Torus.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
-      preferred_cli_env: [
-        "ecto.migrate": :test,
-        "ecto.reset": :test,
-        "ecto.rollback": :test,
-        "ecto.gen": :test,
-        "test.ci": :test,
-        "test.reset": :test,
-        "test.setup": :test
-      ],
-
       # Hex
       package: package(),
       description: """
       Torus bridges Ecto and PostgreSQL, simplifying building search queries.
       """,
-
       # Docs
       name: "Torus",
       docs: [
@@ -42,6 +31,18 @@ defmodule Torus.MixProject do
         extras: extras(),
         skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
       ]
+    ]
+  end
+
+  def cli do
+    [
+      "ecto.migrate": :test,
+      "ecto.reset": :test,
+      "ecto.rollback": :test,
+      "ecto.gen": :test,
+      "test.ci": :test,
+      "test.reset": :test,
+      "test.setup": :test
     ]
   end
 
