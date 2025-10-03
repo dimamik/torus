@@ -191,8 +191,9 @@ To use it:
   ```elixir
   def deps do
   [
-    {:bumblebee, "~> 0.6"},
-    {:nx, "~> 0.9"}
+    {:bumblebee, ">= 0.0.0"},
+    {:exla, ">= 0.0.0"},
+    {:nx, ">= 0.0.0"}
   ]
   end
   ```

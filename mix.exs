@@ -73,7 +73,7 @@ defmodule Torus.MixProject do
       {:decorator, ">= 0.0.0", optional: true},
       {:nx, ">= 0.0.0", optional: true},
       {:req, ">= 0.0.0", optional: true},
-      {:exla, ">= 0.0.0", only: [:dev, :test]},
+      {:exla, ">= 0.0.0", optional: true},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
