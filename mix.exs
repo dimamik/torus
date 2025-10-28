@@ -74,6 +74,7 @@ defmodule Torus.MixProject do
       {:nx, ">= 0.0.0", optional: true},
       {:req, ">= 0.0.0", optional: true},
       {:exla, ">= 0.0.0", optional: true},
+      {:plug, "~> 1.0", only: [:test]},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]

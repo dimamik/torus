@@ -64,6 +64,7 @@ if Code.ensure_loaded?(Req) do
       [url: @base_url, headers: headers, json: payload]
       |> Req.post!()
       |> Map.fetch!(:body)
+      |> Map.fetch!("data")
       |> Enum.map(& &1["embedding"])
       |> Enum.map(&Pgvector.new/1)
     end

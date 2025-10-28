@@ -20,3 +20,7 @@ config :torus, Torus.Embeddings.Batcher,
   max_batch_size: 10,
   default_batch_timeout: 100,
   embedding_module: Torus.Embeddings.HuggingFace
+
+if Mix.env() == :test do
+  import_config "#{config_env()}.exs"
+end
