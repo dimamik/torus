@@ -1,3 +1,10 @@
+# v0.5.3
+
+## Fixes
+
+- `Torus.Embeddings.OpenAI` now correctly parses updated response structure from OpenAI API.
+- `exla` nx backend is now correctly supported in `Torus.Embeddings.LocalNxServing`.
+
 # v0.5.2
 
 ## New 🔥
