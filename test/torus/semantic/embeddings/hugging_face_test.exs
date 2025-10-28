@@ -1,4 +1,4 @@
-defmodule Torus.Semantic.Embeddings.HuggingFace do
+defmodule Torus.Semantic.Embeddings.HuggingFaceTest do
   @moduledoc false
   use Torus.Case, async: true
 

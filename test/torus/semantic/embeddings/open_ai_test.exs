@@ -1,4 +1,4 @@
-defmodule Torus.Semantic.Embeddings.OpenAI do
+defmodule Torus.Semantic.Embeddings.OpenAITest do
   @moduledoc false
   use Torus.Case, async: true
 

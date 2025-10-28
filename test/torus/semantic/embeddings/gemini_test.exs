@@ -1,4 +1,4 @@
-defmodule Torus.Semantic.Embeddings.Gemini do
+defmodule Torus.Semantic.Embeddings.GeminiTest do
   @moduledoc false
   use Torus.Case, async: true
 
