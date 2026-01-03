@@ -21,7 +21,7 @@ if Code.ensure_loaded?(Req) do
       end
       ```
 
-    - Add an API token for hugging face to your `runtime.exs`. You can get your token [here](https://huggingface.co/settings/tokens).
+    - Add an API token for OpenAI to your `runtime.exs`. You can get your token [here](https://platform.openai.com/api-keys).
 
       ```elixir
       config :torus, Torus.Embeddings.OpenAI, token: System.get_env("OPEN_AI_API_KEY")
