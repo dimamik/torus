@@ -38,7 +38,7 @@ Post
 
 See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more details.
 
-## 6 types of search:
+## 7 types of search:
 
 1. **Pattern matching**: Searches for a specific pattern in a string.
 
@@ -58,12 +58,13 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 1. **Similarity:** Searches for records that closely match the input text using trigram distance.
 
    ```elixir
-   iex> insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
-   ...> Post
-   ...> |> Torus.similarity([p], [p.title], "hoggwarrds")
-   ...> |> limit(2)
-   ...> |> select([p], p.title)
-   ...> |> Repo.all()
+   insert_posts!(["Hogwarts Secrets", "Quidditch Fever", "Hogwart’s Secret"])
+
+   Post
+   |> Torus.similarity([p], [p.title], "hoggwarrds")
+   |> limit(2)
+   |> select([p], p.title)
+   |> Repo.all()
    ["Hogwarts Secrets", "Hogwart’s Secret"]
    ```
 
@@ -74,19 +75,38 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 1. **Full text**: Uses term-document matrix vectors for, enabling efficient querying and ranking based on term frequency. Supports prefix search and is great for large datasets to quickly return relevant results. See [PostgreSQL Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) for internal implementation details.
 
    ```elixir
-   iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
-   ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
-   ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
-   ...> Post
-   ...> |> Torus.full_text([p], [p.title, p.body], "uncov hogwar")
-   ...> |> select([p], p.title)
-   ...> |> Repo.all()
+   insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+   insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+   insert_post!(title: "Completely unrelated", body: "No magic here!")
+
+   Post
+   |> Torus.full_text([p], [p.title, p.body], "uncov hogwar")
+   |> select([p], p.title)
+   |> Repo.all()
    ["Diagon Bombshell"]
    ```
 
-   Use it when you don’t care about spelling, the documents are long, or if you need to order the results by rank.
+   Use it when you don't care about spelling, the documents are long, you need multi-column search with weights, or if you need to order the results by rank.
 
    See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more details.
+
+1. **BM25 full text**: Modern BM25 ranking algorithm for superior relevance scoring using the [pg_textsearch](https://github.com/timescale/pg_textsearch) extension. BM25 generally provides better ranking than traditional built-in TF-IDF full text search and is optimized for top-k queries.
+
+   ```elixir
+   insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+   insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+   insert_post!(title: "Completely unrelated", body: "No magic here!")
+
+   Post
+   |> Torus.bm25([p], p.body, "secrets hogwarts")
+   |> select([p], p.title)
+   |> Repo.all()
+   ["Diagon Bombshell"]
+   ```
+
+   Use it when you need state-of-the-art relevance ranking for single-column search, especially with LIMIT clauses. Requires PostgreSQL 17+.
+
+   See [`bm25/5`](https://hexdocs.pm/torus/Torus.html#bm25/5) and the [BM25 Search Guide](https://dimamik.com/posts/bm25_search) for detailed setup instructions and examples.
 
 1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content utilizing natural language processing. Read more about semantic search in [Semantic search with Torus guide](/guides/semantic_search.md).
 
@@ -131,7 +151,7 @@ Torus offers a few helpers to debug, explain, and analyze your queries before us
 
 ## Torus support
 
-For now, Torus supports pattern match, similarity, full-text, and semantic search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
+For now, Torus supports pattern match, similarity, full-text (TF-IDF and BM25), and semantic search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
 
 <!-- MDOC -->
 

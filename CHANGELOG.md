@@ -1,3 +1,32 @@
+# v0.6.0
+
+## New 🔥
+
+**BM25 Full-Text Search** is now available via the new `Torus.bm25/5` macro!
+
+[BM25](https://en.wikipedia.org/wiki/Okapi_BM25) is a modern ranking algorithm that generally provides superior relevance scoring compared to traditional TF-IDF (used by `full_text/5`). This integration uses the [pg_textsearch](https://github.com/timescale/pg_textsearch) extension by Timescale.
+
+Key features:
+
+- State-of-the-art BM25 ranking with configurable index parameters (k1, b)
+- Blazingly fast top-k queries via Block-Max WAND optimization (`Torus.bm25/5` + `limit`)
+- Simple syntax: `Post |> Torus.bm25([p], p.body, "search term") |> limit(10)`
+- Score selection with `:score_key` and post-filtering with `:score_threshold`
+- Language/stemming configured at index creation via `text_config`
+
+Requirements:
+
+- PostgreSQL 17+
+- pg_textsearch extension installed
+- BM25 index on the search column (with `text_config` for language)
+
+See the [BM25 Search Guide](https://dimamik.com/posts/bm25_search) for detailed setup instructions and examples.
+
+**When to use BM25 vs full_text:**
+
+- Use `bm25/5` for fast single-column search with modern relevance ranking
+- Use `full_text/5` for multi-column search with weights or when using stored tsvector columns
+
 # v0.5.3
 
 ## Fixes

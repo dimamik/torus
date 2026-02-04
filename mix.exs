@@ -1,7 +1,7 @@
 defmodule Torus.MixProject do
   use Mix.Project
 
-  @version "0.5.3"
+  @version "0.6.0"
   @source_url "https://github.com/dimamik/torus"
 
   def project do
@@ -115,8 +115,6 @@ defmodule Torus.MixProject do
   defp extras do
     [
       "guides/semantic_search.md",
-
-      # TODO Add more guides
       "CHANGELOG.md": [title: "Changelog"]
     ]
   end
