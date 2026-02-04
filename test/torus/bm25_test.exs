@@ -2,10 +2,9 @@ defmodule Torus.BM25Test do
   @moduledoc false
   use Torus.Case, async: false
 
-  @moduletag :skip_ci
+  # @moduletag :skip
 
   import Ecto.Query
-  import Torus
 
   alias Torus.Test.Repo
   alias TorusTest.Post
