@@ -23,8 +23,8 @@ defmodule Torus.Search.BM25 do
     )
 
     # Build the BM25 query fragments
-    # When index_name is provided, use 2-arg form for explicit index specification
-    # Otherwise use 1-arg form and let PostgreSQL auto-detect the index
+    # When index_name is provided, use to_bm25query(?, ?) for explicit index specification
+    # Otherwise use bare string literal (?) to let PostgreSQL auto-detect the index
     {bm25query_fragment, bm25query_params} =
       if index_name do
         {
@@ -33,7 +33,7 @@ defmodule Torus.Search.BM25 do
         }
       else
         {
-          "to_bm25query(?)",
+          "?",
           [term]
         }
       end
