@@ -23,7 +23,7 @@ jobs:
     # Additional services can be defined here if required.
     services:
       db:
-        image: postgres:17
+        image: postgres:15
         ports:
           - 5432/tcp
         env:
@@ -40,8 +40,8 @@ jobs:
     name: Test on OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
     strategy:
       matrix:
-        otp: ['28.3']  
-        elixir: ['1.19.5']
+        otp: ['27.2']  
+        elixir: ['1.18.0']
     steps:
     # Step: Setup Elixir + Erlang image as the base.
     - name: Set up Elixir
@@ -86,9 +86,6 @@ jobs:
     - name: Install dependencies
       run: mix deps.get --check-locked
 
-    - name: Install pg_textsearch extension
-      run: |
-        docker exec ${{ job.services.db.id }} bash -lc "apt-get update && apt-get install -y wget && wget -q -O /tmp/pg_textsearch.deb https://github.com/timescale/pg_textsearch/releases/download/v0.5.0/pg-textsearch-postgresql-17_0.5.0-1_amd64.deb && dpkg -i /tmp/pg_textsearch.deb"
     # TODO These steps can be moved to `mix.exs`
 
     # Step: Compile the project treating any warnings as errors.

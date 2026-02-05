@@ -2,25 +2,50 @@ defmodule Torus.BM25Test do
   @moduledoc false
   use Torus.Case, async: false
 
-  # @moduletag :skip
-
-  import Ecto.Query
-
-  alias Torus.Test.Repo
-  alias TorusTest.Post
+  @moduletag :skip
 
   # NOTE: pg_textsearch has a known limitation where uncommitted rows from
   # rolled-back transactions remain in the BM25 memtable. This can cause
   # ORDER BY + LIMIT queries to return stale TIDs that fail visibility checks.
-  # The standalone operator (without ORDER BY) works correctly.
+  # This is why this test is skipped by default on CI and needs to be run manually.
+
+  import Ecto.Query
+
+  alias Ecto.Adapters.SQL.Sandbox
+  alias Torus.Test.Repo
+  alias TorusTest.Post
+
+  setup_all do
+    Sandbox.unboxed_run(Repo, fn ->
+      Repo.query!("CREATE EXTENSION IF NOT EXISTS pg_textsearch")
+
+      Repo.query!("""
+      CREATE INDEX IF NOT EXISTS posts_body_bm25_idx ON posts
+      USING bm25(body) WITH (text_config='english')
+      """)
+
+      Repo.query!("""
+      CREATE INDEX IF NOT EXISTS posts_title_bm25_idx ON posts
+      USING bm25(title) WITH (text_config='english')
+      """)
+    end)
+
+    :ok
+  end
 
   defp flush_bm25!(index_name \\ "posts_body_bm25_idx") do
-    Repo.query!("SELECT bm25_spill_index($1)", [index_name])
+    Sandbox.unboxed_run(Repo, fn ->
+      Repo.query!("SELECT bm25_spill_index($1)", [index_name])
+    end)
+
     :ok
   end
 
   defp reset_bm25_state! do
-    Repo.query!("TRUNCATE TABLE posts RESTART IDENTITY CASCADE")
+    Sandbox.unboxed_run(Repo, fn ->
+      Repo.query!("TRUNCATE TABLE posts RESTART IDENTITY CASCADE")
+    end)
+
     flush_bm25!()
     flush_bm25!("posts_title_bm25_idx")
     :ok
