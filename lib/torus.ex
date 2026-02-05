@@ -366,6 +366,157 @@ defmodule Torus do
     Torus.Search.FullText.to_tsquery(column, query_text, opts)
   end
 
+  @doc group: "Full text"
+  @doc """
+  BM25 ranked full-text search using the [pg_textsearch](https://github.com/timescale/pg_textsearch) extension.
+
+  BM25 is a modern ranking function that generally provides better relevance than traditional
+  TF-IDF (used by `full_text/5`). It's particularly effective for top-k queries with LIMIT clauses
+  due to Block-Max WAND optimization.
+
+  For detailed usage examples, performance tips, and migration guide, see the [BM25 Search guide](https://dimamik.com/posts/bm25_search).
+
+  > #### Requirements {: .warning}
+  >
+  > - Requires the `pg_textsearch` extension to be installed
+  > - PostgreSQL 17+ only
+  > - Requires a BM25 index on the search column
+  > - **Single column only** - unlike `full_text/5`, BM25 indexes work on one column at a time
+  > - **Language is set at index creation** - use `text_config` in the index `WITH` clause
+  >
+  > ```elixir
+  > defmodule YourApp.Repo.Migrations.CreatePgTextsearchExtension do
+  >   use Ecto.Migration
+  >
+  >   def change do
+  >     execute "CREATE EXTENSION IF NOT EXISTS pg_textsearch", "DROP EXTENSION IF EXISTS pg_textsearch"
+  >
+  >     # Create BM25 index with language configuration
+  >     execute \"\"\"
+  >     CREATE INDEX posts_body_bm25_idx ON posts
+  >     USING bm25(body) WITH (text_config='english')
+  >     \"\"\", "DROP INDEX posts_body_bm25_idx"
+  >   end
+  > end
+  > ```
+
+  ## Options
+
+    * `:order` - Ordering of results. Note that BM25 returns **negative scores** (lower is better):
+      - `:asc` (default) - orders by score ascending (best matches first)
+      - `:desc` - orders by score descending (worst matches first)
+      - `:none` - no ordering applied
+    * `:index_name` - Explicit index name. Required when using `score_threshold`.
+    * `:score_key` - Atom key to select the BM25 score into the result map.
+      - `:none` (default) - score is not selected
+      - `atom` - selects score as this key (use with `select_merge/3`)
+    * `:score_threshold` - Post-filter results by BM25 score (applied after ORDER BY).
+      Since scores are negative and lower is better, use negative thresholds (e.g., `-3.0`
+      keeps only results with score < -3.0, i.e., scores like -4.0, -5.0 which are better matches).
+      May return fewer results than LIMIT.
+    * `:pre_filter` - Whether to exclude non-matching rows.
+      - `false` (default) - no pre-filtering
+      - `true` - adds a `WHERE score < 0` clause to exclude non-matches
+
+  ## Examples
+
+  Basic search - returns top 10 most relevant posts:
+
+      Post
+      |> Torus.bm25([p], p.body, "database search")
+      |> limit(10)
+      |> select([p], p.body)
+      |> Repo.all()
+
+  With score selection:
+
+      Post
+      |> Torus.bm25([p], p.body, "database", score_key: :relevance)
+      |> limit(5)
+      |> select([p], %{body: p.body})
+      |> Repo.all()
+      # => [%{body: "...", relevance: -2.5}, ...]
+
+  With WHERE clause pre-filtering:
+
+      Post
+      |> where([p], p.category_id == 123)
+      |> Torus.bm25([p], p.body, "database")
+      |> limit(10)
+      |> Repo.all()
+
+  With score threshold (post-filtering, may return fewer than LIMIT, `index_name` is required):
+
+      Post
+      |> Torus.bm25([p], p.body, "database", score_threshold: -5.0, index_name: "posts_body_idx")
+      |> limit(10)
+      |> Repo.all()
+
+  ## When to use `bm25/5` vs `full_text/5`
+
+  **Use `bm25/5` when:**
+  - You need better relevance ranking than TF-IDF
+  - You need faster search with large datasets
+  - You have large result sets with LIMIT (top-k queries)
+  - Single column search is sufficient
+  - You're on PostgreSQL 17+
+
+  **Use `full_text/5` when:**
+  - You need multi-column search with different weights per column
+  - You want to use stored tsvector columns
+  - You're on PostgreSQL < 17
+  - You need the `concat` filter type
+
+  ## Multi-column search workaround
+
+  Since BM25 indexes work on single columns, you can create a generated column:
+
+  ```sql
+  ALTER TABLE posts
+  ADD COLUMN searchable_text TEXT
+  GENERATED ALWAYS AS (title || ' ' || body) STORED;
+
+  CREATE INDEX posts_searchable_bm25_idx
+  ON posts USING bm25(searchable_text)
+  WITH (text_config='english');
+  ```
+
+  Then search the generated column:
+
+  ```elixir
+  Post
+  |> Torus.bm25([p], p.searchable_text, "search term")
+  |> limit(10)
+  |> Repo.all()
+  ```
+
+  ## Index options
+
+  BM25 indexes support these parameters in the `WITH` clause:
+
+  - `text_config` - PostgreSQL text search configuration (required). This determines
+    the language/stemming rules. Available configs: `'english'`, `'french'`, `'german'`,
+    `'simple'` (no stemming), etc. Run `SELECT cfgname FROM pg_ts_config;` to list all.
+  - `k1` - Term frequency saturation (default: 1.2, range: 0.1-10.0)
+  - `b` - Length normalization (default: 0.75, range: 0.0-1.0)
+
+  ```sql
+  CREATE INDEX custom_idx ON documents
+  USING bm25(content)
+  WITH (text_config='english', k1=1.5, b=0.8);
+  ```
+
+  ## Performance tips
+
+  - BM25 is most efficient with `ORDER BY + LIMIT` (enables Block-Max WAND optimization)
+  - For filtered searches, create a separate B-tree index on the filter column
+  - Pre-filtering works best when the filter is selective (<10% of rows)
+  - Post-filtering with `score_threshold` may return fewer results than LIMIT
+  """
+  defmacro bm25(query, bindings, qualifier, term, opts \\ []) do
+    Torus.Search.BM25.bm25(query, bindings, qualifier, term, opts)
+  end
+
   @doc group: "Pattern matching"
   @doc """
   The substring function with three parameters provides extraction of a substring
