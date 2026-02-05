@@ -17,7 +17,7 @@ The package can be installed by adding `torus` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:torus, "~> 0.5"}
+    {:torus, "~> 0.6"}
   ]
 end
 ```
@@ -72,7 +72,7 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
    See [`similarity/5`](https://hexdocs.pm/torus/Torus.html#similarity/5) for more details.
 
-1. **Full text**: Uses term-document matrix vectors for, enabling efficient querying and ranking based on term frequency. Supports prefix search and is great for large datasets to quickly return relevant results. See [PostgreSQL Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) for internal implementation details.
+1. **Full text**: Uses term-document matrix vectors, enabling efficient querying and ranking based on term frequency. Supports prefix search and is great for large datasets to quickly return relevant results. See [PostgreSQL Full Text Search](https://www.postgresql.org/docs/current/textsearch.html) for internal implementation details.
 
    ```elixir
    insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
@@ -90,18 +90,19 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
    See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more details.
 
-1. **BM25 full text**: Modern BM25 ranking algorithm for superior relevance scoring using the [pg_textsearch](https://github.com/timescale/pg_textsearch) extension. BM25 generally provides better ranking than traditional built-in TF-IDF full text search and is optimized for top-k queries.
+1. **BM25 full text**: Modern [BM25](https://mbrenndoerfer.com/writing/bm25-search-algorithm-elasticsearch-implementation) ranking algorithm for superior relevance scoring using the [pg_textsearch](https://github.com/timescale/pg_textsearch) extension. BM25 generally provides better ranking than traditional built-in TF-IDF full text search and is optimized for top-k queries.
 
    ```elixir
-   insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
-   insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
-   insert_post!(title: "Completely unrelated", body: "No magic here!")
+   insert_post!(title: "Potion Class Notes", body: "Wiggenweld potion heals wounds.")
+   insert_post!(title: "Complete Potion Encyclopedia", body: "Edurus potion grants protection. Focus potion improves concentration. Maxima potion amplifies spells. Thunderbrew potion creates explosions.")
+   insert_post!(title: "Combat Guide", body: "Use Wiggenweld potion to heal during goblin fights.")
 
    Post
-   |> Torus.bm25([p], p.body, "secrets hogwarts")
+   |> Torus.bm25([p], p.body, "wiggenweld potion")
+   |> limit(2)
    |> select([p], p.title)
    |> Repo.all()
-   ["Diagon Bombshell"]
+   ["Potion Class Notes", "Combat Guide"]
    ```
 
    Use it when you need state-of-the-art relevance ranking for single-column search, especially with LIMIT clauses. Requires PostgreSQL 17+.
@@ -133,6 +134,8 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
    Will be added soon.
 
 1. **3rd Party Engines/Providers**: Utilizes external services or software specifically designed for optimized and scalable search capabilities, such as Elasticsearch or Algolia.
+
+You can see all of the above search types in action on the [live demo page](https://torus.dimamik.com).
 
 ## Optimizations and relevance
 

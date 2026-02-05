@@ -42,7 +42,7 @@ if Code.ensure_loaded?(Bumblebee) and Code.ensure_loaded?(Nx) do
 
     You can pass all options directly to `Nx.Serving.start_link/1` function by passing them to `Torus.Embeddings.LocalNxServing` when starting.
 
-    By default, it uses `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` to the config:
+    By default, it uses `sentence-transformers/paraphrase-MiniLM-L3-v2` model, but you can specify a different model by explicitly passing `model` to the config:
 
     ```elixir
     config :torus, Torus.Embeddings.LocalNxServing, model: "your/model"
@@ -115,7 +115,7 @@ else
     @error_message """
     `Torus.Embeddings.LocalNxServing` is not available. Please add `:bumblebee` and `:nx` to your dependencies.
 
-    See `Torus.SemanticSearch` docs for more info.
+    See `Torus.semantic/5` docs for more info.
     """
 
     def child_spec(_opts) do

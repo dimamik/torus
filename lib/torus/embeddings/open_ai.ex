@@ -27,7 +27,7 @@ if Code.ensure_loaded?(Req) do
       config :torus, Torus.Embeddings.OpenAI, token: System.get_env("OPEN_AI_API_KEY")
       ```
 
-    By default, it uses `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` to the config:
+    By default, it uses `text-embedding-ada-002` model, but you can specify a different model by explicitly passing `model` to the config:
 
     ```elixir
     config :torus, Torus.Embeddings.OpenAI, model: "your/model"

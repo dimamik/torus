@@ -1,8 +1,8 @@
 defmodule Torus.Embeddings.Batcher do
   @moduledoc """
-  Size/time‑bounded **batcher** for embedding generation.
+  Size/time–bounded **batcher** for embedding generation.
 
-  `Torus.Embeddings.Batcher` is a long‑running GenServer that collects
+  `Torus.Embeddings.Batcher` is a long–running GenServer that collects
   individual `generate/2` calls, groups them into a single batch, and forwards the
   batch to the configured `embedding_module`.
 
@@ -11,7 +11,7 @@ defmodule Torus.Embeddings.Batcher do
   ## Why batch?
 
   * **Fewer model / network invocations** – one request with *n* terms is cheaper
-  than *n* single‑term requests.
+  than *n* single–term requests.
   * **Lower latency under load** – callers wait only for the current batch to
   flush, not for an entire queue of independent requests.
   * **Higher throughput per API quota** – most providers charge per request, so
@@ -32,18 +32,18 @@ defmodule Torus.Embeddings.Batcher do
 
   ## Configuration
 
-  It's considered a good practise to batch requests to the embedding module, especially when you are dealing with a high-traffic applications.
+  It's considered good practice to batch requests to the embedding module, especially when dealing with high–traffic applications.
 
   To use it:
 
   - Add the following to your `config.exs`:
 
   ```elixir
-   config :torus, batcher: Torus.Embeddings.Batcher
+   config :torus, embedding_module: Torus.Embeddings.Batcher
 
    config :torus, Torus.Embeddings.Batcher,
       max_batch_size: 10,
-      default_batch_timeout: 100,
+      batch_timeout: 100,
       embedding_module: Torus.Embeddings.HuggingFace
   ```
 

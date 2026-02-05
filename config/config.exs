@@ -14,11 +14,11 @@ config :torus, Torus.Test.Repo,
 
 config :torus, ecto_repos: [Torus.Test.Repo]
 
-config :torus, batcher: Torus.Embeddings.Batcher
+config :torus, embedding_module: Torus.Embeddings.Batcher
 
 config :torus, Torus.Embeddings.Batcher,
   max_batch_size: 10,
-  default_batch_timeout: 100,
+  batch_timeout: 100,
   embedding_module: Torus.Embeddings.HuggingFace
 
 if Mix.env() == :test do

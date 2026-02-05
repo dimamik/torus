@@ -6,6 +6,8 @@
 
 [BM25](https://en.wikipedia.org/wiki/Okapi_BM25) is a modern ranking algorithm that generally provides superior relevance scoring compared to traditional TF-IDF (used by `full_text/5`). This integration uses the [pg_textsearch](https://github.com/timescale/pg_textsearch) extension by Timescale.
 
+**See it in action [on the demo page](https://torus.dimamik.com/?method=bm25)**
+
 Key features:
 
 - State-of-the-art BM25 ranking with configurable index parameters (k1, b)

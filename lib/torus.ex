@@ -307,7 +307,7 @@ defmodule Torus do
       - `0` (default for `ts_rank`) - ignores the document length
       - `1`  - divides the rank by 1 + the logarithm of the document length
       - `2`  - divides the rank by the document length
-      - `4` (default for `ts_rank_cs`)  - divides the rank by the mean harmonic
+      - `4` (default for `ts_rank_cd`)  - divides the rank by the mean harmonic
       distance between extents (this is implemented only by `ts_rank_cd`)
       - `8`  - divides the rank by the number of unique words in document
       - `16` -  divides the rank by 1 + the logarithm of the number of unique words in
@@ -466,29 +466,6 @@ defmodule Torus do
   - You want to use stored tsvector columns
   - You're on PostgreSQL < 17
   - You need the `concat` filter type
-
-  ## Multi-column search workaround
-
-  Since BM25 indexes work on single columns, you can create a generated column:
-
-  ```sql
-  ALTER TABLE posts
-  ADD COLUMN searchable_text TEXT
-  GENERATED ALWAYS AS (title || ' ' || body) STORED;
-
-  CREATE INDEX posts_searchable_bm25_idx
-  ON posts USING bm25(searchable_text)
-  WITH (text_config='english');
-  ```
-
-  Then search the generated column:
-
-  ```elixir
-  Post
-  |> Torus.bm25([p], p.searchable_text, "search term")
-  |> limit(10)
-  |> Repo.all()
-  ```
 
   ## Index options
 

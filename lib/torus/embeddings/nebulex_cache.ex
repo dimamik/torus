@@ -10,9 +10,9 @@ if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded(Decorator.Decorate) do
     - Add the following to your `config.exs`:
 
       ```elixir
-      config :torus, cache: Torus.Embeddings.NebulexCache
+      config :torus, embedding_module: Torus.Embeddings.NebulexCache
       config :torus, Torus.Embeddings.NebulexCache,
-        embedding_module: Torus.Embeddings.PostgresML
+        embedding_module: Torus.Embeddings.PostgresML,
         cache: Nebulex.Cache,
         otp_name: :your_app,
         adapter: Nebulex.Adapters.Local,

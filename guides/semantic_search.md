@@ -16,7 +16,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 Semantic search is a technology that understands the meaning behind words to deliver results that match a user's intent, not just exact keywords. It uses AI and machine learning to interpret natural language in context, improving the relevance of search results.
 
-**An embedding** is a numerical representation (vector) of a word, sentence, or document in a high‑dimensional space. It captures the semantic meaning of the text, allowing for more accurate comparisons and searches. The more dimensions an embedding has, the more information it can capture. However, higher dimensions also mean greater complexity and computational cost.
+**An embedding** is a numerical representation (vector) of a word, sentence, or document in a high–dimensional space. It captures the semantic meaning of the text, allowing for more accurate comparisons and searches. The more dimensions an embedding has, the more information it can capture. However, higher dimensions also mean greater complexity and computational cost.
 
 ## The search process is split into three phases:
 
@@ -49,7 +49,7 @@ Note: You’ll need to join or preload the associated embeddings if they're stor
 
 ## 1. Generating embeddings
 
-There are several ways to generate embeddings. `Torus` includes a set of built‑in `Torus.Embeddings` modules that implement the `Torus.Embedding` behaviour - but you're not limited to those. You can easily implement the `Torus.Embedding` behaviour yourself — it’s designed to be simple and straightforward.
+There are several ways to generate embeddings. `Torus` includes a set of built-in `Torus.Embeddings` modules that implement the `Torus.Embedding` behaviour - but you're not limited to those. You can easily implement the `Torus.Embedding` behaviour yourself — it’s designed to be simple and straightforward.
 
 Here is what `Torus` provides out of the box:
 
@@ -110,7 +110,7 @@ To use it:
   end
   ```
 
-- Add an API token for Hugging Face to your `runtime.exs`. You can get your token [here](https://aistudio.google.com/app/apikey).
+- Add an API token for Gemini to your `runtime.exs`. You can get your token [here](https://aistudio.google.com/app/apikey).
 
   ```elixir
   # `config/runtime.exs`
@@ -145,13 +145,13 @@ To use it:
   end
   ```
 
-- Add an API token for OpenAI to your `runtime.exs`. You can get your token [here](https://platform.openai.com/account/api-keys).
+- Add an API token for OpenAI to your `runtime.exs`. You can get your token [here](https://platform.openai.com/api-keys).
 
   ```elixir
   config :torus, Torus.Embeddings.OpenAI, token: System.get_env("OPEN_AI_API_KEY")
   ```
 
-By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
+By default, it uses the `text-embedding-ada-002` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
 
 ```elixir
 config :torus, Torus.Embeddings.OpenAI, model: "your/model"
@@ -168,7 +168,7 @@ config :torus, embedding_module: Torus.Embeddings.PostgresML
 config :torus, Torus.Embeddings.PostgresML, repo: YourApp.Repo
 ```
 
-By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
+By default, it uses the `sentence-transformers/paraphrase-MiniLM-L3-v2` model, but you can specify a different model by explicitly passing `model` in the configuration or when calling `Torus.to_vector/1` function via `model` option:
 
 ```elixir
 config :torus, Torus.Embeddings.PostgresML, model: "your/model"
@@ -216,7 +216,7 @@ To use it:
 
 You can pass all options directly to the `Nx.Serving.start_link/1` function by passing them to `Torus.Embeddings.LocalNxServing` when starting.
 
-By default, it uses the `sentence-transformers/all-MiniLM-L6-v2` model, but you can specify a different model by explicitly passing `model` in the configuration:
+By default, it uses the `sentence-transformers/paraphrase-MiniLM-L3-v2` model, but you can specify a different model by explicitly passing `model` in the configuration:
 
 ```elixir
 config :torus, Torus.Embeddings.LocalNxServing, model: "your/model"
@@ -224,9 +224,9 @@ config :torus, Torus.Embeddings.LocalNxServing, model: "your/model"
 
 ### Torus.Embeddings.Batcher
 
-`Torus.Embeddings.Batcher` is a long‑running **GenServer** that collects individual embedding calls, groups them into a single batch, and forwards the batch to the configured `embedding_module`. It can be used in combination with any of the embedding modules above.
+`Torus.Embeddings.Batcher` is a long–running **GenServer** that collects individual embedding calls, groups them into a single batch, and forwards the batch to the configured `embedding_module`. It can be used in combination with any of the embedding modules above.
 
-It is considered good practice to batch requests to the embedding module, especially when you are dealing with high‑traffic applications.
+It is considered good practice to batch requests to the embedding module, especially when you are dealing with high–traffic applications.
 
 To use it:
 
@@ -237,7 +237,7 @@ To use it:
 
   config :torus, Torus.Embeddings.Batcher,
     max_batch_size: 10,
-    default_batch_timeout: 100,
+    batch_timeout: 100,
     embedding_module: Torus.Embeddings.HuggingFace
   ```
 
