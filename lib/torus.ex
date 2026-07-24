@@ -494,6 +494,92 @@ defmodule Torus do
     Torus.Search.BM25.bm25(query, bindings, qualifier, term, opts)
   end
 
+  @doc group: "Hybrid"
+  @doc """
+  Hybrid search: fuses several search strategies into a single ranked query using
+  [Reciprocal Rank Fusion](https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking)
+  (RRF). Each branch runs as an independent ranked subquery, keeps its `limit` best rows,
+  and the results are merged by summing `weight * 1.0 / (k + rank)` per row across branches.
+
+  Rows that rank high in several branches win; rows found by only one branch still
+  compete. This is the standard way to combine keyword (`full_text/5`, `bm25/5`) and
+  semantic (`semantic/5`) search, and generally outperforms each on its own.
+
+  ## Search branches
+
+  The third argument is a keyword list of search branches. Keys are search types -
+  `:full_text`, `:similarity`, `:semantic`, or `:bm25` (pattern-match searches have no
+  ranking, so they can't participate). The same type can appear more than once. Values
+  are `{qualifiers, term}` or `{qualifiers, term, opts}` tuples mirroring the
+  corresponding search macro's arguments.
+
+  Branch `opts` accept the search type's own options (except `:order` - branches are
+  always ranked best-first), plus:
+
+    * `:weight` - multiplier for this branch's RRF score. Defaults to `1.0`.
+    * `:limit` - how many top rows this branch contributes. Defaults to `20`.
+
+  ## Options
+
+    * `:k` - RRF smoothing constant. Higher values flatten the difference between
+    ranks. Defaults to `60`.
+    * `:limit` - final limit applied to the fused result.
+    * `:score_key` - atom key to select the fused score into the result map (via
+    `select_merge/3`, so your query needs a map select). The score is also available
+    directly through the `:torus_hybrid` named binding.
+    * `:primary_key` - column used to match rows across branches. Defaults to the
+    schema's primary key.
+
+  ## Examples
+
+      iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+      ...> insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+      ...> insert_post!(title: "Completely unrelated", body: "No magic here!")
+      ...> Post
+      ...> |> Torus.hybrid([p], [
+      ...>      full_text: {[p.title, p.body], "uncov hogwar"},
+      ...>      similarity: {[p.title], "hogwarts"}
+      ...>    ])
+      ...> |> select([p], p.title)
+      ...> |> Repo.all()
+      ["Diagon Bombshell", "Hogwarts Shocker", "Completely unrelated"]
+
+  With semantic search, weights, and the fused score selected:
+
+      search_vector = Torus.to_vector("A magic school in the UK")
+
+      Post
+      |> Torus.hybrid([p], [
+           full_text: {[p.title, p.body], "magic school", weight: 1.0},
+           semantic: {p.embedding, search_vector, distance: :cosine_distance, weight: 2.0}
+         ],
+         limit: 10,
+         score_key: :score
+       )
+      |> select([p], %{title: p.title})
+      |> Repo.all()
+      # => [%{title: "...", score: 0.047}, ...]
+
+  The fused query is a regular Ecto query - you can keep piping `select`, `preload`,
+  `where`, or pagination onto it. The base query's filters (everything piped in before
+  `hybrid/4`) apply to every branch.
+
+  ## Optimizations
+
+  - Each branch is a separate subquery, so index each branch's search the same way
+  you would index the standalone search macro (GIN for full text and trigrams, HNSW /
+  IVFFlat for vectors, BM25 index for `bm25/5`).
+  - Branch `:limit` caps how many rows each branch ranks and contributes - keep it
+  close to your final `:limit` (2x is a good default) so branches stay top-k friendly.
+  - A branch without a filter (for example `similarity` without `pre_filter: true`, or
+  `full_text` with `filter_type: :none`) ranks every row the base query allows, which
+  is a full scan without a matching index. Prefer filtered branches on large tables.
+  - `:k` rarely needs tuning - 60 is the standard from the RRF paper and works well.
+  """
+  defmacro hybrid(query, bindings, searches, opts \\ []) do
+    Torus.Search.Hybrid.hybrid(query, bindings, searches, opts)
+  end
+
   @doc group: "Pattern matching"
   @doc """
   The substring function with three parameters provides extraction of a substring

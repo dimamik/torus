@@ -23,7 +23,7 @@ jobs:
     # Additional services can be defined here if required.
     services:
       db:
-        image: postgres:15
+        image: pgvector/pgvector:pg17
         ports:
           - 5432/tcp
         env:

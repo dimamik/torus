@@ -115,6 +115,7 @@ defmodule Torus.MixProject do
   defp extras do
     [
       "guides/semantic_search.md",
+      "guides/hybrid_search.md",
       "CHANGELOG.md": [title: "Changelog"]
     ]
   end

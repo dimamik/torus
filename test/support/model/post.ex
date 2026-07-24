@@ -5,6 +5,7 @@ defmodule TorusTest.Post do
   schema "posts" do
     field :title, :string
     field :body, :string
+    field :embedding, Pgvector.Ecto.Vector
     belongs_to :author, TorusTest.Author
   end
 end

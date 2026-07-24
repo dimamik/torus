@@ -1,0 +1,235 @@
+defmodule Torus.HybridTest do
+  @moduledoc false
+  use Torus.Case, async: true
+
+  import Ecto.Query
+
+  defp rrf(rank, k \\ 60, weight \\ 1.0), do: weight * (1.0 / (k + rank))
+
+  describe "hybrid/4 - fusion" do
+    setup do
+      insert_post!(title: "hogwarts wand", body: "A wand chooses the wizard.")
+      insert_post!(title: "hogwart", body: "Almost the school.")
+      insert_post!(title: "owl post", body: "Mail delivery by owls.")
+
+      :ok
+    end
+
+    test "fuses ranks with hand-computed RRF scores" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], "wand"},
+          similarity: {[p.title], "hogwarts"}
+        )
+        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> Repo.all()
+
+      assert [{"hogwarts wand", first}, {"hogwart", second}, {"owl post", third}] = results
+
+      # "hogwarts wand" is rank 1 in both branches, the others match similarity only
+      assert_in_delta first, rrf(1) + rrf(1), 1.0e-12
+      assert_in_delta second, rrf(2), 1.0e-12
+      assert_in_delta third, rrf(3), 1.0e-12
+    end
+
+    test "weights scale branch contributions" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], "wand", weight: 2.0},
+          similarity: {[p.title], "hogwarts", weight: 0.5}
+        )
+        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> Repo.all()
+
+      assert [{"hogwarts wand", first} | _rest] = results
+      assert_in_delta first, rrf(1, 60, 2.0) + rrf(1, 60, 0.5), 1.0e-12
+    end
+
+    test "custom k changes the smoothing" do
+      results =
+        Post
+        |> Torus.hybrid([p], [similarity: {[p.title], "hogwarts"}], k: 1)
+        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> Repo.all()
+
+      assert [{"hogwarts wand", first} | _rest] = results
+      assert_in_delta first, rrf(1, 1), 1.0e-12
+    end
+
+    test "semantic branch fuses with keyword branches" do
+      Repo.update_all(where(Post, title: "hogwarts wand"),
+        set: [embedding: Pgvector.new([1.0, 0.0, 0.0])]
+      )
+
+      Repo.update_all(where(Post, title: "hogwart"),
+        set: [embedding: Pgvector.new([0.9, 0.1, 0.0])]
+      )
+
+      Repo.update_all(where(Post, title: "owl post"),
+        set: [embedding: Pgvector.new([0.0, 0.0, 1.0])]
+      )
+
+      search_vector = Pgvector.new([1.0, 0.0, 0.0])
+
+      results =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], "wand"},
+          similarity: {[p.title], "hogwarts"},
+          semantic: {p.embedding, search_vector, distance: :cosine_distance}
+        )
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwarts wand", "hogwart", "owl post"] = results
+    end
+
+    test "base query filters apply to every branch" do
+      results =
+        Post
+        |> where([p], p.title != "hogwarts wand")
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwart", "owl post"] = results
+    end
+
+    test "score_key merges the fused score into a map select" do
+      results =
+        Post
+        |> select([p], %{title: p.title})
+        |> Torus.hybrid([p], [similarity: {[p.title], "hogwarts"}], score_key: :score)
+        |> Repo.all()
+
+      assert [%{title: "hogwarts wand", score: score} | _rest] = results
+      assert_in_delta score, rrf(1), 1.0e-12
+    end
+
+    test "stays composable after fusion" do
+      author = insert_author!(name: "Rita Skeeter")
+      Repo.update_all(Post, set: [author_id: author.id])
+
+      results =
+        Post
+        |> Torus.hybrid([p], [similarity: {[p.title], "hogwarts"}], limit: 2)
+        |> where([p], p.title != "hogwart")
+        |> preload(:author)
+        |> Repo.all()
+
+      assert [
+               %Post{title: "hogwarts wand", author: %Author{name: "Rita Skeeter"}},
+               %Post{title: "owl post"}
+             ] = results
+    end
+  end
+
+  describe "hybrid/4 - branch limits and determinism" do
+    test "branch limit caps how many rows a branch contributes" do
+      for index <- 1..30, do: insert_post!(title: "filler #{index} zzz")
+      insert_post!(title: "hogwarts")
+
+      results =
+        Post
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts", limit: 5})
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert length(results) == 5
+      assert ["hogwarts" | _rest] = results
+    end
+
+    test "returns the same order across runs" do
+      for index <- 1..30, do: insert_post!(title: "filler #{index} zzz")
+      insert_post!(title: "hogwarts")
+      insert_post!(title: "hogwart")
+
+      query =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], "hogwarts"},
+          similarity: {[p.title], "hogwarts"}
+        )
+        |> select([p], p.id)
+
+      first_run = Repo.all(query)
+      second_run = Repo.all(query)
+
+      assert first_run == second_run
+    end
+  end
+
+  describe "hybrid/4 - errors" do
+    test "raises on a runtime (non-literal) branch list" do
+      code = """
+      import Ecto.Query
+      import Torus
+      alias TorusTest.Post
+
+      searches = []
+      Post |> Torus.hybrid([p], searches)
+      """
+
+      assert_raise RuntimeError, ~r/compile-time keyword list of search branches/, fn ->
+        Code.eval_string(code, [], __ENV__)
+      end
+    end
+
+    test "raises on an unsupported branch type" do
+      code = """
+      import Ecto.Query
+      import Torus
+      alias TorusTest.Post
+
+      Post |> Torus.hybrid([p], ilike: {[p.title], "hog%"})
+      """
+
+      assert_raise RuntimeError, ~r/compile-time keyword list of search branches/, fn ->
+        Code.eval_string(code, [], __ENV__)
+      end
+    end
+
+    test "raises on the `order` branch option" do
+      code = """
+      import Ecto.Query
+      import Torus
+      alias TorusTest.Post
+
+      Post |> Torus.hybrid([p], similarity: {[p.title], "hog", order: :asc})
+      """
+
+      assert_raise RuntimeError, ~r/`order` option is not supported/, fn ->
+        Code.eval_string(code, [], __ENV__)
+      end
+    end
+
+    test "raises on a malformed branch spec" do
+      code = """
+      import Ecto.Query
+      import Torus
+      alias TorusTest.Post
+
+      Post |> Torus.hybrid([p], similarity: [p.title])
+      """
+
+      assert_raise RuntimeError, ~r/must be a `{qualifiers, term}`/, fn ->
+        Code.eval_string(code, [], __ENV__)
+      end
+    end
+
+    test "raises on a schemaless query without :primary_key" do
+      assert_raise ArgumentError, ~r/schemaless query/, fn ->
+        from(p in "posts")
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+      end
+    end
+
+    test "semantic branch raises on a non-Pgvector term" do
+      assert_raise RuntimeError, ~r/should be a Pgvector struct/, fn ->
+        Post |> Torus.hybrid([p], semantic: {p.embedding, "not a vector"})
+      end
+    end
+  end
+end
