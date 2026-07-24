@@ -2,6 +2,8 @@ defmodule Torus.Semantic.Embeddings.HuggingFaceTest do
   @moduledoc false
   use Torus.Case, async: true
 
+  alias Torus.Embeddings.HuggingFace
+
   test "generate/2" do
     Req.Test.stub(:req_plug, fn conn ->
       Req.Test.json(conn, [
@@ -18,6 +20,6 @@ defmodule Torus.Semantic.Embeddings.HuggingFaceTest do
     assert [
              %Pgvector{data: "\0\x03\0\0\xBD\r8\x19<\xFE$v;ܰ\xE1"},
              %Pgvector{data: "\0\x03\0\0\xBD\\\x80\xC1\xBD\xB7΅\xBAh\x94\x8D"}
-           ] = Torus.Embeddings.HuggingFace.generate(terms)
+           ] = HuggingFace.generate(terms)
   end
 end

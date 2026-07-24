@@ -2,6 +2,8 @@ defmodule Torus.Semantic.Embeddings.OpenAITest do
   @moduledoc false
   use Torus.Case, async: true
 
+  alias Torus.Embeddings.OpenAI
+
   test "generate/2" do
     Req.Test.stub(:req_plug, fn conn ->
       Req.Test.json(conn, %{
@@ -38,6 +40,6 @@ defmodule Torus.Semantic.Embeddings.OpenAITest do
     assert [
              %Pgvector{data: "\0\x03\0\0\xBB\xB5\x8Cv;\x9B3)\xBCu\xEC*"},
              %Pgvector{data: "\0\x03\0\0;\xBF\xA1G\xBC\x10煼\xCFZ\x0F"}
-           ] = Torus.Embeddings.OpenAI.generate(terms)
+           ] = OpenAI.generate(terms)
   end
 end

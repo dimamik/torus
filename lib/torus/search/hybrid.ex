@@ -3,6 +3,8 @@ defmodule Torus.Search.Hybrid do
   import Torus.Search.Common
   import Ecto.Query, warn: false
 
+  alias Torus.Search.Hybrid
+
   @search_modules %{
     full_text: Torus.Search.FullText,
     similarity: Torus.Search.Similarity,
@@ -105,7 +107,7 @@ defmodule Torus.Search.Hybrid do
         torus_hybrid_source_query = Ecto.Queryable.to_query(unquote(query))
 
         torus_hybrid_primary_key =
-          Torus.Search.Hybrid.primary_key!(torus_hybrid_source_query, unquote(primary_key))
+          Hybrid.primary_key!(torus_hybrid_source_query, unquote(primary_key))
 
         torus_hybrid_branch_base =
           torus_hybrid_source_query

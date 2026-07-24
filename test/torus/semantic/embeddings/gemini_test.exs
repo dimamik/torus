@@ -2,6 +2,8 @@ defmodule Torus.Semantic.Embeddings.GeminiTest do
   @moduledoc false
   use Torus.Case, async: true
 
+  alias Torus.Embeddings.Gemini
+
   test "generate/2" do
     Req.Test.stub(:req_plug, fn conn ->
       Req.Test.json(conn, %{
@@ -24,6 +26,6 @@ defmodule Torus.Semantic.Embeddings.GeminiTest do
     assert [
              %Pgvector{data: "\0\x03\0\0\xBC\xC4M\x88<\x15v\xE9\xBD{֕"},
              %Pgvector{data: "\0\x03\0\0\xBDL,\x99\xBCƺz\xBD\xBF\xBD\xE7"}
-           ] = Torus.Embeddings.Gemini.generate(terms)
+           ] = Gemini.generate(terms)
   end
 end

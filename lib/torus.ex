@@ -8,6 +8,13 @@ defmodule Torus do
 
   import Ecto.Query, warn: false
 
+  alias Torus.Search.BM25
+  alias Torus.Search.FullText
+  alias Torus.Search.Hybrid
+  alias Torus.Search.PatternMatch
+  alias Torus.Search.Semantic
+  alias Torus.Search.Similarity
+
   ## Pattern matching searches
 
   @doc group: "Pattern matching"
@@ -50,7 +57,7 @@ defmodule Torus do
   See `like/5` optimization section for more details.
   """
   defmacro ilike(query, bindings, qualifiers, term, _opts \\ []) do
-    Torus.Search.PatternMatch.ilike(query, bindings, qualifiers, term)
+    PatternMatch.ilike(query, bindings, qualifiers, term)
   end
 
   @doc group: "Pattern matching"
@@ -110,7 +117,7 @@ defmodule Torus do
   details.
   """
   defmacro like(query, bindings, qualifiers, term, _opts \\ []) do
-    Torus.Search.PatternMatch.like(query, bindings, qualifiers, term)
+    PatternMatch.like(query, bindings, qualifiers, term)
   end
 
   @doc group: "Pattern matching"
@@ -137,7 +144,7 @@ defmodule Torus do
   """
   # TODO: Adjust the description when POSIX regex is added
   defmacro similar_to(query, bindings, qualifiers, term, _opts \\ []) do
-    Torus.Search.PatternMatch.similar_to(query, bindings, qualifiers, term)
+    PatternMatch.similar_to(query, bindings, qualifiers, term)
   end
 
   @doc group: "Pattern matching"
@@ -150,7 +157,7 @@ defmodule Torus do
       "realterm"
   """
   def sanitize(term) do
-    Torus.Search.PatternMatch.sanitize(term)
+    PatternMatch.sanitize(term)
   end
 
   # -----------------------------------
@@ -244,7 +251,7 @@ defmodule Torus do
   ```
   """
   defmacro similarity(query, bindings, qualifiers, term, opts \\ []) do
-    Torus.Search.Similarity.similarity(query, bindings, qualifiers, term, opts)
+    Similarity.similarity(query, bindings, qualifiers, term, opts)
   end
 
   # ----------------------------------------------------------------
@@ -358,12 +365,12 @@ defmodule Torus do
       ```
   """
   defmacro full_text(query, bindings, qualifiers, term, opts \\ []) do
-    Torus.Search.FullText.full_text(query, bindings, qualifiers, term, opts)
+    FullText.full_text(query, bindings, qualifiers, term, opts)
   end
 
   @doc false
   defmacro to_tsquery(column, query_text, opts \\ []) do
-    Torus.Search.FullText.to_tsquery(column, query_text, opts)
+    FullText.to_tsquery(column, query_text, opts)
   end
 
   @doc group: "Full text"
@@ -407,9 +414,11 @@ defmodule Torus do
       - `:desc` - orders by score descending (worst matches first)
       - `:none` - no ordering applied
     * `:index_name` - Explicit index name. Required when using `score_threshold`.
-    * `:score_key` - Atom key to select the BM25 score into the result map.
+    * `:score_key` - Atom key to select the BM25 score into the result map. The score
+    is merged via `select_merge/3`, so the query needs to select a map **before**
+    calling `bm25/5` (e.g. `select([p], %{body: p.body})`).
       - `:none` (default) - score is not selected
-      - `atom` - selects score as this key (use with `select_merge/3`)
+      - `atom` - selects score as this key
     * `:score_threshold` - Post-filter results by BM25 score (applied after ORDER BY).
       Since scores are negative and lower is better, use negative thresholds (e.g., `-3.0`
       keeps only results with score < -3.0, i.e., scores like -4.0, -5.0 which are better matches).
@@ -428,12 +437,12 @@ defmodule Torus do
       |> select([p], p.body)
       |> Repo.all()
 
-  With score selection:
+  With score selection (select a map before calling, so the score has somewhere to merge into):
 
       Post
+      |> select([p], %{body: p.body})
       |> Torus.bm25([p], p.body, "database", score_key: :relevance)
       |> limit(5)
-      |> select([p], %{body: p.body})
       |> Repo.all()
       # => [%{body: "...", relevance: -2.5}, ...]
 
@@ -491,7 +500,7 @@ defmodule Torus do
   - Post-filtering with `score_threshold` may return fewer results than LIMIT
   """
   defmacro bm25(query, bindings, qualifier, term, opts \\ []) do
-    Torus.Search.BM25.bm25(query, bindings, qualifier, term, opts)
+    BM25.bm25(query, bindings, qualifier, term, opts)
   end
 
   @doc group: "Hybrid"
@@ -524,9 +533,10 @@ defmodule Torus do
     * `:k` - RRF smoothing constant. Higher values flatten the difference between
     ranks. Defaults to `60`.
     * `:limit` - final limit applied to the fused result.
-    * `:score_key` - atom key to select the fused score into the result map (via
-    `select_merge/3`, so your query needs a map select). The score is also available
-    directly through the `:torus_hybrid` named binding.
+    * `:score_key` - atom key to select the fused score into the result map. The score
+    is merged via `select_merge/3`, so the query needs to select a map **before**
+    calling `hybrid/4`. The score is also available directly through the
+    `:torus_hybrid` named binding.
     * `:primary_key` - column used to match rows across branches. Defaults to the
     schema's primary key.
 
@@ -577,7 +587,7 @@ defmodule Torus do
   - `:k` rarely needs tuning - 60 is the standard from the RRF paper and works well.
   """
   defmacro hybrid(query, bindings, searches, opts \\ []) do
-    Torus.Search.Hybrid.hybrid(query, bindings, searches, opts)
+    Hybrid.hybrid(query, bindings, searches, opts)
   end
 
   @doc group: "Pattern matching"
@@ -652,8 +662,8 @@ defmodule Torus do
       - `:none` (default) - no pre-filtering is done.
       - `float` - pre-filters the results before applying the order. The results with vectors distance below the pre-filter value are returned.
     * `:distance_key` - pass an atom to put the selected distance under in the result
-    map. If you intend to use other option then `:none`, you need to use
-    `select_merge/3` in your query going forward so that the distance is appended to the map.
+    map. The distance is merged via `select_merge/3`, so the query needs to select a
+    map **before** calling `semantic/5` (e.g. `select([p], %{title: p.title})`).
       - `:none` (default) - the distance is not selected.
       - `atom` - the map key the distance is put under.
 
@@ -693,7 +703,7 @@ defmodule Torus do
           ```
   """
   defmacro semantic(query, bindings, qualifier, vector_term, opts \\ []) do
-    Torus.Search.Semantic.semantic(query, bindings, qualifier, vector_term, opts)
+    Semantic.semantic(query, bindings, qualifier, vector_term, opts)
   end
 
   @doc group: "Semantic"
@@ -709,13 +719,13 @@ defmodule Torus do
 
   See [Semantic search guide](semantic_search.html) for more info.
   """
-  defdelegate to_vectors(terms, opts \\ []), to: Torus.Search.Semantic
+  defdelegate to_vectors(terms, opts \\ []), to: Semantic
 
   @doc group: "Semantic"
   @doc """
   Same as `to_vectors/2`, but returns the first vector from the list.
   """
-  defdelegate to_vector(term, opts \\ []), to: Torus.Search.Semantic
+  defdelegate to_vector(term, opts \\ []), to: Semantic
 
   @doc group: "Semantic"
   @doc """
@@ -723,5 +733,5 @@ defmodule Torus do
 
   See [Semantic search guide](semantic_search.html) for more info.
   """
-  defdelegate embedding_model(opts \\ []), to: Torus.Search.Semantic
+  defdelegate embedding_model(opts \\ []), to: Semantic
 end
