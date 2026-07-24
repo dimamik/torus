@@ -23,12 +23,14 @@ if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded(Decorator.Decorate) do
       config :torus, Torus.Embeddings.PostgresML, repo: TorusExample.Repo
       ```
 
-    - Add `nebulex` and `decorator` to your `mix.exs` dependencies:
+    - Add `nebulex`, `nebulex_local` (for the default local adapter), and `decorator`
+      to your `mix.exs` dependencies:
 
       ```elixir
       def deps do
       [
-        {:nebulex, ">= 0.0.0"},
+        {:nebulex, ">= 3.0.0"},
+        {:nebulex_local, ">= 3.0.0"},
         {:decorator, ">= 0.0.0"}
       ]
       end
@@ -87,7 +89,8 @@ else
     """
 
     @error_message """
-    You need to add `:nebulex` and `:decorator` to your dependencies in order to use the Nebulex cache.
+    You need to add `:nebulex`, `:nebulex_local` (for the default local adapter), and
+    `:decorator` to your dependencies in order to use the Nebulex cache.
     """
 
     @behaviour Torus.Embedding

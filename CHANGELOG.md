@@ -30,6 +30,18 @@ See the [Hybrid search guide](guides/hybrid_search.md) for details.
 
 - Test suite now runs semantic (pgvector) integration tests on CI.
 
+## Breaking changes ⚠️
+
+- `Torus.Embeddings.NebulexCache` now targets Nebulex 3.0+. Nebulex 3.0 moved
+  `Nebulex.Adapters.Local` (the default adapter) to the separate `nebulex_local`
+  package - if you use the cache, upgrade `nebulex` to `>= 3.0.0` and add
+  `nebulex_local` to your dependencies.
+
+## Fixes
+
+- `Torus.QueryInspector.tap_sql/3` no longer crashes - it now prints the SQL and its
+  parameters and returns the query.
+
 # v0.6.0
 
 ## New 🔥

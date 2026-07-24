@@ -69,7 +69,9 @@ defmodule Torus.MixProject do
       {:pgvector, "~> 0.3"},
       {:postgrex, ">= 0.0.0"},
       {:bumblebee, ">= 0.0.0", optional: true},
-      {:nebulex, ">= 0.0.0", optional: true},
+      {:nebulex, ">= 3.0.0", optional: true},
+      # Nebulex 3.0 moved Nebulex.Adapters.Local (our default adapter) to :nebulex_local
+      {:nebulex_local, ">= 3.0.0", optional: true},
       {:decorator, ">= 0.0.0", optional: true},
       {:nx, ">= 0.0.0", optional: true},
       {:req, ">= 0.0.0", optional: true},
