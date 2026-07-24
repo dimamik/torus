@@ -21,8 +21,8 @@ defmodule Torus.Search.Hybrid do
     primary_key = Keyword.get(opts, :primary_key, nil)
     source = List.first(bindings)
 
-    raise_if(not is_atom(score_key), "The `score_key` option must be an atom.")
-    raise_if(is_number(k) and k <= 0, "The `k` option must be a positive number.")
+    validate_score_key!(score_key)
+    validate_k!(k)
 
     raise_if(
       not (is_list(searches) and searches != [] and
@@ -51,10 +51,8 @@ defmodule Torus.Search.Hybrid do
             "branches are always ranked best-first."
         )
 
-        raise_if(
-          is_number(weight) and weight < 0,
-          "The `weight` of a hybrid branch must be a non-negative number."
-        )
+        validate_weight!(weight)
+        validate_branch_limit!(branch_limit)
 
         {filters, direction, rank, preludes} =
           module.branch(bindings, qualifiers, term, branch_opts)
@@ -194,6 +192,47 @@ defmodule Torus.Search.Hybrid do
       |> limit(^unquote(branch.limit))
     end
   end
+
+  defp validate_score_key!(score_key) do
+    raise_if(
+      is_nil(score_key) or not is_atom(score_key),
+      "The `score_key` option must be a non-nil atom."
+    )
+  end
+
+  defp validate_k!(k) do
+    k = literal_number(k)
+
+    raise_if(
+      is_binary(k) or is_atom(k) or is_list(k) or (is_number(k) and k <= 0),
+      "The `k` option must be a positive number."
+    )
+  end
+
+  defp validate_weight!(weight) do
+    weight = literal_number(weight)
+
+    raise_if(
+      is_binary(weight) or is_atom(weight) or is_list(weight) or
+        (is_number(weight) and weight < 0),
+      "The `weight` of a hybrid branch must be a non-negative number."
+    )
+  end
+
+  defp validate_branch_limit!(branch_limit) do
+    branch_limit = literal_number(branch_limit)
+
+    raise_if(
+      is_binary(branch_limit) or is_atom(branch_limit) or is_list(branch_limit) or
+        is_float(branch_limit) or (is_integer(branch_limit) and branch_limit <= 0),
+      "The `limit` of a hybrid branch must be a positive integer."
+    )
+  end
+
+  # Negative literals appear in the AST as a unary minus, e.g. `-1.0` is
+  # `{:-, _meta, [1.0]}` - normalize them so literal validations catch them.
+  defp literal_number({:-, _meta, [number]}) when is_number(number), do: -number
+  defp literal_number(other), do: other
 
   defp parse_spec(_type, {qualifiers, term}), do: {qualifiers, term, []}
 

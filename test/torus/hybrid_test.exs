@@ -219,6 +219,47 @@ defmodule Torus.HybridTest do
       end
     end
 
+    test "raises on invalid literal options" do
+      for {options, message} <- [
+            {~s|[k: "sixty"]|, ~r/`k` option must be a positive number/},
+            {"[k: 0]", ~r/`k` option must be a positive number/},
+            {"[score_key: nil]", ~r/`score_key` option must be a non-nil atom/}
+          ] do
+        code = """
+        import Ecto.Query
+        import Torus
+        alias TorusTest.Post
+
+        Post |> Torus.hybrid([p], [similarity: {[p.title], "hog"}], #{options})
+        """
+
+        assert_raise RuntimeError, message, fn ->
+          Code.eval_string(code, [], __ENV__)
+        end
+      end
+    end
+
+    test "raises on invalid literal branch options" do
+      for {branch_options, message} <- [
+            {~s|weight: "2.0"|, ~r/`weight` of a hybrid branch must be a non-negative number/},
+            {"weight: -1.0", ~r/`weight` of a hybrid branch must be a non-negative number/},
+            {"limit: 0", ~r/`limit` of a hybrid branch must be a positive integer/},
+            {"limit: 2.5", ~r/`limit` of a hybrid branch must be a positive integer/}
+          ] do
+        code = """
+        import Ecto.Query
+        import Torus
+        alias TorusTest.Post
+
+        Post |> Torus.hybrid([p], similarity: {[p.title], "hog", #{branch_options}})
+        """
+
+        assert_raise RuntimeError, message, fn ->
+          Code.eval_string(code, [], __ENV__)
+        end
+      end
+    end
+
     test "raises on a schemaless query without :primary_key" do
       assert_raise ArgumentError, ~r/schemaless query/, fn ->
         from(p in "posts")

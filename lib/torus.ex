@@ -559,6 +559,7 @@ defmodule Torus do
       search_vector = Torus.to_vector("A magic school in the UK")
 
       Post
+      |> select([p], %{title: p.title})
       |> Torus.hybrid([p], [
            full_text: {[p.title, p.body], "magic school", weight: 1.0},
            semantic: {p.embedding, search_vector, distance: :cosine_distance, weight: 2.0}
@@ -566,7 +567,6 @@ defmodule Torus do
          limit: 10,
          score_key: :score
        )
-      |> select([p], %{title: p.title})
       |> Repo.all()
       # => [%{title: "...", score: 0.047}, ...]
 
