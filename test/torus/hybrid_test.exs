@@ -47,6 +47,76 @@ defmodule Torus.HybridTest do
       assert_in_delta first, rrf(1, 60, 2.0) + rrf(1, 60, 0.5), 1.0e-12
     end
 
+    test "the same branch type can appear more than once" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          similarity: {[p.title], "hogwarts", weight: 2.0},
+          similarity: {[p.body], "wand", weight: 0.5}
+        )
+        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> Repo.all()
+
+      assert [{"hogwarts wand", first}, _second, _third] = results
+      assert_in_delta first, rrf(1, 60, 2.0) + rrf(1, 60, 0.5), 1.0e-12
+    end
+
+    test "full_text branch supports filter_type: :concat" do
+      results =
+        Post
+        |> Torus.hybrid([p], full_text: {[p.title, p.body], "wand", filter_type: :concat})
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwarts wand"] = results
+    end
+
+    test "bm25 branch generates a ranked <@> subquery" do
+      sql =
+        Post
+        |> Torus.hybrid([p], bm25: {p.body, "search"})
+        |> QueryInspector.substituted_sql()
+
+      assert sql =~ "row_number()"
+      assert sql =~ ~s|<@> 'search'|
+    end
+
+    test "semantic branch pre_filter excludes distant rows" do
+      Repo.update_all(where(Post, title: "hogwarts wand"),
+        set: [embedding: Pgvector.new([1.0, 0.0, 0.0])]
+      )
+
+      Repo.update_all(where(Post, title: "hogwart"),
+        set: [embedding: Pgvector.new([0.9, 0.1, 0.0])]
+      )
+
+      Repo.update_all(where(Post, title: "owl post"),
+        set: [embedding: Pgvector.new([0.0, 0.0, 1.0])]
+      )
+
+      search_vector = Pgvector.new([1.0, 0.0, 0.0])
+
+      results =
+        Post
+        |> Torus.hybrid([p],
+          semantic: {p.embedding, search_vector, distance: :cosine_distance, pre_filter: 0.5}
+        )
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwarts wand", "hogwart"] = results
+    end
+
+    test ":primary_key fuses schemaless queries" do
+      results =
+        from(p in "posts")
+        |> Torus.hybrid([p], [similarity: {[p.title], "hogwarts"}], primary_key: :id)
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwarts wand", "hogwart", "owl post"] = results
+    end
+
     test "custom k changes the smoothing" do
       results =
         Post
@@ -84,6 +154,42 @@ defmodule Torus.HybridTest do
         |> Repo.all()
 
       assert ["hogwarts wand", "hogwart", "owl post"] = results
+    end
+
+    test "discards order_by piped in before the fusion" do
+      results =
+        Post
+        |> order_by([p], desc: p.title)
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwarts wand", "hogwart", "owl post"] = results
+    end
+
+    test "preload piped in before the fusion applies to the result" do
+      author = insert_author!(name: "Rita Skeeter")
+      Repo.update_all(Post, set: [author_id: author.id])
+
+      results =
+        Post
+        |> preload(:author)
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+        |> Repo.all()
+
+      assert [%Post{title: "hogwarts wand", author: %Author{name: "Rita Skeeter"}} | _rest] =
+               results
+    end
+
+    test "offset piped in before the fusion skips fused rows, not branch rows" do
+      results =
+        Post
+        |> offset(1)
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwart", "owl post"] = results
     end
 
     test "base query filters apply to every branch" do
@@ -139,6 +245,22 @@ defmodule Torus.HybridTest do
 
       assert length(results) == 5
       assert ["hogwarts" | _rest] = results
+    end
+
+    test "ties within a branch rank deterministically by primary key" do
+      posts = for _index <- 1..3, do: insert_post!(title: "same title")
+
+      results =
+        Post
+        |> Torus.hybrid([p], similarity: {[p.title], "same title"})
+        |> select([p, torus_hybrid: f], {p.id, f.score})
+        |> Repo.all()
+
+      assert Enum.map(results, &elem(&1, 0)) == Enum.map(posts, & &1.id)
+
+      for {{_id, score}, rank} <- Enum.with_index(results, 1) do
+        assert_in_delta score, rrf(rank), 1.0e-12
+      end
     end
 
     test "returns the same order across runs" do
@@ -264,6 +386,20 @@ defmodule Torus.HybridTest do
       assert_raise ArgumentError, ~r/schemaless query/, fn ->
         from(p in "posts")
         |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+      end
+    end
+
+    test "raises on a non-float semantic pre_filter" do
+      code = """
+      import Ecto.Query
+      import Torus
+      alias TorusTest.Post
+
+      Post |> Torus.hybrid([p], semantic: {p.embedding, "vector", pre_filter: 1})
+      """
+
+      assert_raise RuntimeError, ~r/must be a literal float/, fn ->
+        Code.eval_string(code, [], __ENV__)
       end
     end
 

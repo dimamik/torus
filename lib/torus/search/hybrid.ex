@@ -102,7 +102,10 @@ defmodule Torus.Search.Hybrid do
       quote do
         unquote_splicing(preludes)
 
-        torus_hybrid_source_query = Ecto.Queryable.to_query(unquote(query))
+        torus_hybrid_source_query =
+          unquote(query)
+          |> Ecto.Queryable.to_query()
+          |> Ecto.Query.exclude(:order_by)
 
         torus_hybrid_primary_key =
           Hybrid.primary_key!(torus_hybrid_source_query, unquote(primary_key))
@@ -110,7 +113,8 @@ defmodule Torus.Search.Hybrid do
         torus_hybrid_branch_base =
           torus_hybrid_source_query
           |> Ecto.Query.exclude(:select)
-          |> Ecto.Query.exclude(:order_by)
+          |> Ecto.Query.exclude(:preload)
+          |> Ecto.Query.exclude(:offset)
 
         torus_hybrid_source_query
         |> join(:inner, [unquote_splicing(bindings)], f in subquery(unquote(fused)),
@@ -183,7 +187,10 @@ defmodule Torus.Search.Hybrid do
         rank:
           selected_as(
             over(row_number(),
-              order_by: [{unquote(branch.direction), unquote(branch.rank)}]
+              order_by: [
+                {unquote(branch.direction), unquote(branch.rank)},
+                {:asc, field(unquote(source), ^torus_hybrid_primary_key)}
+              ]
             ),
             :rank
           )

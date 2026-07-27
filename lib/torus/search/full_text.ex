@@ -12,63 +12,15 @@ defmodule Torus.Search.FullText do
   def full_text(query, bindings, qualifiers, term, opts \\ []) do
     # Arguments fetching
     qualifiers = List.wrap(qualifiers)
-    language = get_language(opts)
-    prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
-    empty_return = get_arg!(opts, :empty_return, true, @true_false)
-    stored = get_arg!(opts, :stored, false, @true_false)
-    term_function = get_arg!(opts, :term_function, :websearch_to_tsquery, @term_functions)
-    rank_function = get_arg!(opts, :rank_function, :ts_rank_cd, @rank_functions)
-    filter_type = get_arg!(opts, :filter_type, :or, @filter_types)
     order = get_arg!(opts, :order, :desc, @order_types)
-
-    rank_weights =
-      Keyword.get_lazy(opts, :rank_weights, fn ->
-        exceeding_size = max(length(qualifiers) - 4, 0)
-        [:A, :B, :C, :D] ++ List.duplicate(:D, exceeding_size)
-      end)
-
-    rank_normalization =
-      Keyword.get_lazy(opts, :rank_normalization, fn ->
-        if rank_function == :ts_rank_cd, do: 4, else: 1
-      end)
-
-    coalesce = Keyword.get(opts, :coalesce, filter_type == :concat and length(qualifiers) > 1)
-    coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
-    empty_return = empty_return |> to_string() |> String.upcase()
-
-    # Arguments validation
-    raise_if(
-      length(rank_weights) < length(qualifiers),
-      "The length of `rank_weights` should be the same as the length of the qualifiers."
-    )
-
-    raise_if(
-      not Enum.all?(rank_weights, &(to_string(&1) in @supported_weights)),
-      "Each rank weight from `rank_weights` should be one of the: #{@supported_weights}"
-    )
+    options = parse_options(qualifiers, opts)
+    filter_type = options.filter_type
 
     # Arguments preparation
-    prefix_string = prefix_search_string(prefix_search)
     desc_asc = parse_order(order)
 
-    weighted_columns = prepare_weights(qualifiers, stored, language, rank_weights, coalesce)
-
-    concat_filter_fragment =
-      concat_filter_fragment(qualifiers, term, prefix_search, term_function, language,
-        weighted_columns: weighted_columns,
-        prefix_string: prefix_string,
-        empty_return: empty_return
-      )
-
-    order_fragment =
-      rank_fragment(qualifiers, term, prefix_search, term_function, language,
-        weighted_columns: weighted_columns,
-        prefix_string: prefix_string,
-        rank_function: rank_function,
-        rank_normalization: rank_normalization,
-        suffix: " #{desc_asc}"
-      )
-
+    concat_filter_fragment = concat_filter_fragment(qualifiers, term, options)
+    order_fragment = rank_fragment(qualifiers, term, options, " #{desc_asc}")
     or_filter_ast = or_filter_ast(bindings, qualifiers, term, opts)
 
     # Query building
@@ -95,6 +47,32 @@ defmodule Torus.Search.FullText do
 
   def branch(bindings, qualifiers, term, opts) do
     qualifiers = List.wrap(qualifiers)
+    options = parse_options(qualifiers, opts)
+
+    filters =
+      case options.filter_type do
+        :none ->
+          []
+
+        :or ->
+          [or_filter_ast(bindings, qualifiers, term, opts)]
+
+        :concat ->
+          concat_fragment = concat_filter_fragment(qualifiers, term, options)
+
+          [
+            quote do
+              dynamic([unquote_splicing(bindings)], unquote(concat_fragment))
+            end
+          ]
+      end
+
+    rank = rank_fragment(qualifiers, term, options, "")
+
+    {filters, :desc, rank, []}
+  end
+
+  defp parse_options(qualifiers, opts) do
     language = get_language(opts)
     prefix_search = get_arg!(opts, :prefix_search, true, @true_false)
     empty_return = get_arg!(opts, :empty_return, true, @true_false)
@@ -116,7 +94,6 @@ defmodule Torus.Search.FullText do
 
     coalesce = Keyword.get(opts, :coalesce, filter_type == :concat and length(qualifiers) > 1)
     coalesce = coalesce and filter_type == :concat and length(qualifiers) > 1
-    empty_return = empty_return |> to_string() |> String.upcase()
 
     raise_if(
       length(rank_weights) < length(qualifiers),
@@ -128,42 +105,17 @@ defmodule Torus.Search.FullText do
       "Each rank weight from `rank_weights` should be one of the: #{@supported_weights}"
     )
 
-    prefix_string = prefix_search_string(prefix_search)
-    weighted_columns = prepare_weights(qualifiers, stored, language, rank_weights, coalesce)
-
-    filters =
-      case filter_type do
-        :none ->
-          []
-
-        :or ->
-          [or_filter_ast(bindings, qualifiers, term, opts)]
-
-        :concat ->
-          concat_fragment =
-            concat_filter_fragment(qualifiers, term, prefix_search, term_function, language,
-              weighted_columns: weighted_columns,
-              prefix_string: prefix_string,
-              empty_return: empty_return
-            )
-
-          [
-            quote do
-              dynamic([unquote_splicing(bindings)], unquote(concat_fragment))
-            end
-          ]
-      end
-
-    rank =
-      rank_fragment(qualifiers, term, prefix_search, term_function, language,
-        weighted_columns: weighted_columns,
-        prefix_string: prefix_string,
-        rank_function: rank_function,
-        rank_normalization: rank_normalization,
-        suffix: ""
-      )
-
-    {filters, :desc, rank, []}
+    %{
+      language: language,
+      prefix_search: prefix_search,
+      empty_return: empty_return |> to_string() |> String.upcase(),
+      term_function: term_function,
+      rank_function: rank_function,
+      filter_type: filter_type,
+      rank_normalization: rank_normalization,
+      prefix_string: prefix_search_string(prefix_search),
+      weighted_columns: prepare_weights(qualifiers, stored, language, rank_weights, coalesce)
+    }
   end
 
   def to_tsquery(column, query_text, opts) do
@@ -218,10 +170,15 @@ defmodule Torus.Search.FullText do
     end)
   end
 
-  defp concat_filter_fragment(qualifiers, term, prefix_search, term_function, language, parts) do
-    weighted_columns = Keyword.fetch!(parts, :weighted_columns)
-    prefix_string = Keyword.fetch!(parts, :prefix_string)
-    empty_return = Keyword.fetch!(parts, :empty_return)
+  defp concat_filter_fragment(qualifiers, term, options) do
+    %{
+      language: language,
+      prefix_search: prefix_search,
+      empty_return: empty_return,
+      term_function: term_function,
+      prefix_string: prefix_string,
+      weighted_columns: weighted_columns
+    } = options
 
     concat_filter_string =
       "#{weighted_columns} @@ (#{term_function}(#{language}, ?)#{prefix_string})::tsquery"
@@ -254,12 +211,16 @@ defmodule Torus.Search.FullText do
     end
   end
 
-  defp rank_fragment(qualifiers, term, prefix_search, term_function, language, parts) do
-    weighted_columns = Keyword.fetch!(parts, :weighted_columns)
-    prefix_string = Keyword.fetch!(parts, :prefix_string)
-    rank_function = Keyword.fetch!(parts, :rank_function)
-    rank_normalization = Keyword.fetch!(parts, :rank_normalization)
-    suffix = Keyword.fetch!(parts, :suffix)
+  defp rank_fragment(qualifiers, term, options, suffix) do
+    %{
+      language: language,
+      prefix_search: prefix_search,
+      term_function: term_function,
+      rank_function: rank_function,
+      rank_normalization: rank_normalization,
+      prefix_string: prefix_string,
+      weighted_columns: weighted_columns
+    } = options
 
     order_string =
       "#{rank_function}(#{weighted_columns}, (#{term_function}(#{language}, ?)#{prefix_string})::tsquery, #{rank_normalization})"

@@ -64,8 +64,8 @@ defmodule Torus.MixProject do
 
   defp deps do
     [
-      {:ecto, "~> 3.0"},
-      {:ecto_sql, "~> 3.0"},
+      {:ecto, "~> 3.10"},
+      {:ecto_sql, "~> 3.10"},
       {:pgvector, "~> 0.3"},
       {:postgrex, ">= 0.0.0"},
       {:bumblebee, ">= 0.0.0", optional: true},

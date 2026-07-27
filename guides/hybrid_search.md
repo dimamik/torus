@@ -33,7 +33,7 @@ end
 
 This runs as **one SQL query**: each branch becomes a ranked subquery keeping its top rows, the ranks are fused with RRF, and the base table is joined back so you get regular `Post` structs in fused order.
 
-Everything piped in **before** `hybrid/4` (filters, joins) applies to every branch. Everything piped **after** composes with the fused result - `select`, `preload`, `where`, pagination.
+Everything piped in **before** `hybrid/4` (filters, joins) applies to every branch. Everything piped **after** composes with the fused result - `select`, `preload`, `where`, pagination. The exceptions: an `order_by` piped in before is discarded (the fused score defines the order), and a `preload` or `offset` piped in before applies only to the fused result, not to the branches.
 
 For generating and storing the embeddings that the `semantic` branch needs, see the [Semantic search guide](semantic_search.md).
 

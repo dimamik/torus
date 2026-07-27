@@ -572,7 +572,9 @@ defmodule Torus do
 
   The fused query is a regular Ecto query - you can keep piping `select`, `preload`,
   `where`, or pagination onto it. The base query's filters (everything piped in before
-  `hybrid/4`) apply to every branch.
+  `hybrid/4`) apply to every branch. An `order_by` piped in before `hybrid/4` is
+  discarded - the fused score defines the order - and a `preload` or `offset` piped in
+  before applies only to the fused result, not to the branches.
 
   ## Optimizations
 
