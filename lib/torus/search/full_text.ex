@@ -2,6 +2,8 @@ defmodule Torus.Search.FullText do
   @moduledoc false
   import Torus.Search.Common
 
+  alias Torus.Search.Highlight
+
   @supported_weights ~w[A B C D]
   @term_functions ~w[websearch_to_tsquery plainto_tsquery phraseto_tsquery]a
   @rank_functions ~w[ts_rank_cd ts_rank]a
@@ -24,25 +26,28 @@ defmodule Torus.Search.FullText do
     or_filter_ast = or_filter_ast(bindings, qualifiers, term, opts)
 
     # Query building
-    quote do
-      unquote(query)
-      |> apply_case(
-        unquote(filter_type),
-        fn
-          :none, query ->
-            query
+    query_ast =
+      quote do
+        unquote(query)
+        |> apply_case(
+          unquote(filter_type),
+          fn
+            :none, query ->
+              query
 
-          :or, query ->
-            where(unquote(query), ^unquote(or_filter_ast))
+            :or, query ->
+              where(unquote(query), ^unquote(or_filter_ast))
 
-          :concat, query ->
-            where(unquote(query), [unquote_splicing(bindings)], unquote(concat_filter_fragment))
-        end
-      )
-      |> apply_if(unquote(order) != :none, fn query ->
-        order_by(query, [unquote_splicing(bindings)], unquote(order_fragment))
-      end)
-    end
+            :concat, query ->
+              where(unquote(query), [unquote_splicing(bindings)], unquote(concat_filter_fragment))
+          end
+        )
+        |> apply_if(unquote(order) != :none, fn query ->
+          order_by(query, [unquote_splicing(bindings)], unquote(order_fragment))
+        end)
+      end
+
+    Highlight.merge_highlight(query_ast, bindings, term, opts, :word)
   end
 
   def branch(bindings, qualifiers, term, opts) do

@@ -10,6 +10,7 @@ defmodule Torus do
 
   alias Torus.Search.BM25
   alias Torus.Search.FullText
+  alias Torus.Search.Highlight
   alias Torus.Search.Hybrid
   alias Torus.Search.PatternMatch
   alias Torus.Search.Semantic
@@ -27,6 +28,11 @@ defmodule Torus do
   > Doesn't clean the term, so it needs to be sanitized before being passed in. See
   [LIKE-injections](https://githubengineering.com/like-injection/).
   You can use `Torus.sanitize/1` to clean the term.
+
+  ## Options
+
+    * `:highlight` - a keyword list of result keys to columns to highlight the
+    term's matches in, e.g. `highlight: [title: p.title]`. See `highlight/3`.
 
   ## Examples
 
@@ -56,8 +62,8 @@ defmodule Torus do
 
   See `like/5` optimization section for more details.
   """
-  defmacro ilike(query, bindings, qualifiers, term, _opts \\ []) do
-    PatternMatch.ilike(query, bindings, qualifiers, term)
+  defmacro ilike(query, bindings, qualifiers, term, opts \\ []) do
+    PatternMatch.ilike(query, bindings, qualifiers, term, opts)
   end
 
   @doc group: "Pattern matching"
@@ -69,6 +75,11 @@ defmodule Torus do
   > Doesn't clean the term, so it needs to be sanitized before being passed in. See
   [LIKE-injections](https://githubengineering.com/like-injection/).
   You can use `Torus.sanitize/1` to clean the term.
+
+  ## Options
+
+    * `:highlight` - a keyword list of result keys to columns to highlight the
+    term's matches in, e.g. `highlight: [title: p.title]`. See `highlight/3`.
 
   ## Examples
 
@@ -116,8 +127,8 @@ defmodule Torus do
   - Use full-text search for large text fields, see `full_text/5` for more
   details.
   """
-  defmacro like(query, bindings, qualifiers, term, _opts \\ []) do
-    PatternMatch.like(query, bindings, qualifiers, term)
+  defmacro like(query, bindings, qualifiers, term, opts \\ []) do
+    PatternMatch.like(query, bindings, qualifiers, term, opts)
   end
 
   @doc group: "Pattern matching"
@@ -207,6 +218,8 @@ defmodule Torus do
     operators which potentially use GIN indexes) the result set. The results above
     `pg_trgm.{type}_threshold` are returned. It is advised to set the corresponding value to `0.3` so that more relevant results are returned.
     For example, for `word_similarity`, we'd run `SET pg_trgm.word_similarity_threshold = 0.3;`.
+    * `:highlight` - a keyword list of result keys to columns to highlight the
+    term's exact-word matches in, e.g. `highlight: [title: p.title]`. See `highlight/3`.
 
   ## Examples
 
@@ -333,6 +346,8 @@ defmodule Torus do
     * `empty_return` - whether to return all results when the search term is empty.
       - `true` (default) - returns all results when the search term is empty.
       - `false` - returns an empty list when the search term is empty.
+    * `:highlight` - a keyword list of result keys to columns to highlight the
+    term's matches in, e.g. `highlight: [title: p.title]`. See `highlight/3`.
     * `:coalesce` - when joining columns via `:concat` option, adds a
     `COALESCE` function to handle NULL values. Choose true when you can't guarantee
     that all columns are non-null.
@@ -371,6 +386,117 @@ defmodule Torus do
   @doc false
   defmacro to_tsquery(column, query_text, opts \\ []) do
     FullText.to_tsquery(column, query_text, opts)
+  end
+
+  @doc group: "Full text"
+  @doc """
+  Highlights matches of `term` in `qualifier` using PostgreSQL
+  [`ts_headline`](https://postgresql.org/docs/current/interactive/textsearch-controls.html#TEXTSEARCH-HEADLINE).
+
+  Use it in `select`/`select_merge` alongside any search macro. Two highlighting
+  types are supported via the `:type` option:
+
+    * `:word` (default) - word-based, uses the same term parsing as `full_text/5`,
+    so it pairs naturally with `full_text/5`, `bm25/5`, and `hybrid/4`. It also
+    highlights the exact-word matches of `similarity/5` (though not its fuzzy
+    matches).
+    * `:substring` - highlights every occurrence of the term as a plain substring
+    (implemented with `regexp_replace`, the term is regex-escaped). Pairs with
+    `ilike/5` and `like/5`, whose `%term%` patterns match inside words where
+    word-based highlighting finds nothing.
+
+  `semantic/5` matches aren't lexical, so there is nothing to highlight there.
+
+  ## Highlighting from the search macros
+
+  Instead of repeating the term, pass `highlight: [result_key: column]` directly to
+  `full_text/5`, `bm25/5`, `similarity/5`, `ilike/5`, `like/5`, or a `hybrid/4`
+  branch's options - the search's own term and options are reused. `ilike/5`/`like/5` highlight as substrings with the
+  macro's case sensitivity, stripping `%`/`_` wildcards from the term; the rest
+  highlight word matches. The highlighted value is merged via `select_merge/3`, so
+  either use a key that exists on the selected struct (its value is replaced with
+  the highlighted text) or select a map before the search macro.
+
+      iex> insert_post!(title: "Hogwarts Shocker")
+      ...> Post
+      ...> |> Torus.full_text([p], [p.title], "shocker", highlight: [title: p.title])
+      ...> |> Repo.all()
+      ...> |> Enum.map(& &1.title)
+      ["Hogwarts <b>Shocker</b>"]
+
+      iex> insert_post!(title: "Hogwarts Shocker")
+      ...> Post
+      ...> |> Torus.ilike([p], [p.title], "%ogwart%", highlight: [title: p.title])
+      ...> |> Repo.all()
+      ...> |> Enum.map(& &1.title)
+      ["H<b>ogwart</b>s Shocker"]
+
+  > #### Warning {: .neutral}
+  >
+  > The returned text is **not** HTML-escaped - the column content is returned
+  > as-is with the matches wrapped in `:start_sel`/`:stop_sel`. If you render it as
+  > raw HTML, either sanitize the result or use unique markers (e.g.
+  > `start_sel: "@@", stop_sel: "@@"`), escape the result, and only then convert
+  > the markers to tags.
+
+  ## Options
+
+    * `:type` - `:word` (default) or `:substring`, see above.
+    * `:start_sel`, `:stop_sel` - strings the matches are wrapped in. Default to
+    `"<b>"` and `"</b>"`.
+
+  Options for `type: :substring`:
+
+    * `:case_sensitive` - defaults to `false` (matching `ilike/5`); set to `true`
+    to only highlight exact-case occurrences (matching `like/5`).
+
+  Options for `type: :word`:
+
+    * `:language` - language used for the search. Defaults to `"english"`.
+    * `:term_function` - function used to convert the term to `ts_query`. Same
+    options as in `full_text/5`. Defaults to `:websearch_to_tsquery`.
+    * `:prefix_search` - whether to also highlight words the term matches as a
+    prefix. Defaults to `true` (same as `full_text/5`).
+    * `:highlight_all` - whether to return the whole document.
+      - `true` (default) - returns the full text with all matches highlighted.
+      - `false` - returns a fragment (snippet) around the matches, controlled by
+      the options below.
+    * `:max_words`, `:min_words` - fragment size when `highlight_all: false`.
+    Default to PostgreSQL's `35` and `15`.
+    * `:short_word` - words of this length or less are dropped at fragment
+    start/end. Defaults to `3`.
+    * `:max_fragments` - maximum number of fragments to return. Defaults to `0`.
+    * `:fragment_delimiter` - string used to join fragments. Defaults to `" ... "`.
+
+  ## Examples
+
+      iex> insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+      ...> Post
+      ...> |> Torus.full_text([p], [p.title, p.body], "shocker")
+      ...> |> select([p], Torus.highlight(p.title, "shocker"))
+      ...> |> Repo.all()
+      ["Hogwarts <b>Shocker</b>"]
+
+  With a snippet instead of the full text:
+
+      iex> insert_post!(body: "A magic spell disrupts the Quidditch Cup final at Hogwarts.")
+      ...> Post
+      ...> |> Torus.full_text([p], [p.body], "quidditch")
+      ...> |> select([p], Torus.highlight(p.body, "quidditch", highlight_all: false, max_words: 5, min_words: 2))
+      ...> |> Repo.all()
+      ["<b>Quidditch</b> Cup final"]
+
+  Substring highlighting alongside `ilike/5`:
+
+      iex> insert_post!(title: "Hogwarts Shocker")
+      ...> Post
+      ...> |> Torus.ilike([p], [p.title], "%ogwart%")
+      ...> |> select([p], Torus.highlight(p.title, "ogwart", type: :substring))
+      ...> |> Repo.all()
+      ["H<b>ogwart</b>s Shocker"]
+  """
+  defmacro highlight(qualifier, term, opts \\ []) do
+    Highlight.highlight(qualifier, term, opts)
   end
 
   @doc group: "Full text"
@@ -426,6 +552,8 @@ defmodule Torus do
     * `:pre_filter` - Whether to exclude non-matching rows.
       - `false` (default) - no pre-filtering
       - `true` - adds a `WHERE score < 0` clause to exclude non-matches
+    * `:highlight` - a keyword list of result keys to columns to highlight the
+    term's matches in, e.g. `highlight: [body: p.body]`. See `highlight/3`.
 
   ## Examples
 
@@ -528,6 +656,9 @@ defmodule Torus do
 
     * `:weight` - multiplier for this branch's RRF score. Defaults to `1.0`.
     * `:limit` - how many top rows this branch contributes. Defaults to `20`.
+    * `:highlight` - a keyword list of result keys to columns to highlight this
+    branch's term matches in, e.g. `highlight: [title: p.title]`. Not supported in
+    `:semantic` branches. See `highlight/3`.
 
   In `full_text` branches `empty_return` defaults to `false`, so an empty search term
   contributes no rows to the fusion instead of boosting arbitrary ones.

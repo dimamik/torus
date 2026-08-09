@@ -3,6 +3,7 @@ defmodule Torus.Search.Hybrid do
   import Torus.Search.Common
   import Ecto.Query, warn: false
 
+  alias Torus.Search.Highlight
   alias Torus.Search.Hybrid
 
   @search_modules %{
@@ -44,35 +45,7 @@ defmodule Torus.Search.Hybrid do
       """
     )
 
-    branches =
-      for {type, spec} <- searches do
-        module = Map.fetch!(@search_modules, type)
-        {qualifiers, term, branch_opts} = parse_spec(type, spec)
-        {weight, branch_opts} = Keyword.pop(branch_opts, :weight, 1.0)
-        {branch_limit, branch_opts} = Keyword.pop(branch_opts, :limit, 20)
-
-        for {option, explanation} <- @unsupported_branch_options do
-          raise_if(
-            Keyword.has_key?(branch_opts, option),
-            "The `#{option}` option is not supported in hybrid branches - #{explanation}."
-          )
-        end
-
-        validate_weight!(weight)
-        validate_branch_limit!(branch_limit)
-
-        {filters, direction, rank, preludes} =
-          module.branch(bindings, qualifiers, term, branch_opts)
-
-        %{
-          filters: filters,
-          direction: direction,
-          rank: rank,
-          preludes: preludes,
-          weight: weight,
-          limit: branch_limit
-        }
-      end
+    branches = for {type, spec} <- searches, do: build_branch(type, spec, bindings)
 
     preludes = Enum.flat_map(branches, & &1.preludes)
 
@@ -155,16 +128,25 @@ defmodule Torus.Search.Hybrid do
         end
       end
 
-    if score_key == :none do
-      final
-    else
-      quote do
-        unquote(final)
-        |> select_merge([unquote_splicing(bindings), torus_hybrid: fused_row], %{
-          unquote(score_key) => fused_row.score
-        })
+    final =
+      if score_key == :none do
+        final
+      else
+        quote do
+          unquote(final)
+          |> select_merge([unquote_splicing(bindings), torus_hybrid: fused_row], %{
+            unquote(score_key) => fused_row.score
+          })
+        end
       end
-    end
+
+    Enum.reduce(branches, final, fn
+      %{highlight: nil}, final_acc ->
+        final_acc
+
+      %{highlight: %{term: term, opts: opts}}, final_acc ->
+        Highlight.merge_highlight(final_acc, bindings, term, opts, :word)
+    end)
   end
 
   def primary_key!(_query, primary_key) when is_atom(primary_key) and not is_nil(primary_key) do
@@ -189,6 +171,42 @@ defmodule Torus.Search.Hybrid do
     Torus.hybrid/4 can't detect the primary key of a schemaless query.
     Pass the `:primary_key` option to choose the column to fuse on.
     """
+  end
+
+  defp build_branch(type, spec, bindings) do
+    module = Map.fetch!(@search_modules, type)
+    {qualifiers, term, branch_opts} = parse_spec(type, spec)
+    {weight, branch_opts} = Keyword.pop(branch_opts, :weight, 1.0)
+    {branch_limit, branch_opts} = Keyword.pop(branch_opts, :limit, 20)
+    {highlight, branch_opts} = Keyword.pop(branch_opts, :highlight)
+
+    for {option, explanation} <- @unsupported_branch_options do
+      raise_if(
+        Keyword.has_key?(branch_opts, option),
+        "The `#{option}` option is not supported in hybrid branches - #{explanation}."
+      )
+    end
+
+    raise_if(
+      highlight != nil and type == :semantic,
+      "The `highlight` option is not supported in `semantic` branches - " <>
+        "semantic matches aren't lexical, so there is nothing to highlight."
+    )
+
+    validate_weight!(weight)
+    validate_branch_limit!(branch_limit)
+
+    {filters, direction, rank, preludes} = module.branch(bindings, qualifiers, term, branch_opts)
+
+    %{
+      filters: filters,
+      direction: direction,
+      rank: rank,
+      preludes: preludes,
+      weight: weight,
+      limit: branch_limit,
+      highlight: highlight && %{term: term, opts: Keyword.put(branch_opts, :highlight, highlight)}
+    }
   end
 
   defp branch_ast(branch, bindings, source) do

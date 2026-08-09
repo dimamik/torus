@@ -154,6 +154,27 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
 You can see all of the above search types in action on the [live demo page](https://torus.dimamik.com).
 
+## Highlighting matches
+
+Searches can highlight their matches in the results - pass `highlight: [key: column]` to `full_text`, `bm25`, `similarity`, `ilike`, or `like`, and the search's own term and options are reused:
+
+```elixir
+Post
+|> Torus.full_text([p], [p.title, p.body], "shocker", highlight: [title: p.title])
+|> Repo.all()
+[%Post{title: "Hogwarts <b>Shocker</b>", ...}]
+```
+
+For full control (custom terms, snippets, `hybrid` queries), use [`highlight/3`](https://hexdocs.pm/torus/Torus.html#highlight/3) directly in `select`/`select_merge`:
+
+```elixir
+Post
+|> Torus.full_text([p], [p.title, p.body], "shocker")
+|> select([p], Torus.highlight(p.title, "shocker"))
+|> Repo.all()
+["Hogwarts <b>Shocker</b>"]
+```
+
 ## Optimizations and relevance
 
 Torus is designed to be as efficient and relevant as possible from the start. But handling large datasets and complex search queries tends to be tricky. The best way to combine these two to achieve the best result is to:
@@ -177,5 +198,4 @@ For now, Torus supports pattern match, similarity, full-text (TF-IDF and BM25), 
 
 ## Future plans
 
-- [ ] Add support for highlighting search results. (Base off of a `ts_headline` function)
 - [ ] Extend similarity search to support [`fuzzystrmatch`](https://www.postgresql.org/docs/current/fuzzystrmatch.html) extension distance options.

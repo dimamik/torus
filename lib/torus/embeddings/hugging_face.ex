@@ -35,7 +35,6 @@ if Code.ensure_loaded?(Req) do
 
     See `Torus.semantic/5` on how to use this module to introduce semantic search in your application.
     """
-    require Torus
     alias Torus.Embeddings.Common
 
     @behaviour Torus.Embedding
