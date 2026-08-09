@@ -78,6 +78,23 @@ defmodule Torus.HybridTest do
       assert_in_delta third, rrf(3), 1.0e-12
     end
 
+    test "an empty full_text term contributes no rows even with filter_type: :none" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], "", filter_type: :none},
+          similarity: {[p.title], "hogwarts"}
+        )
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
+        |> Repo.all()
+
+      # Only the similarity branch contributes despite the unfiltered full_text branch
+      assert [{"hogwarts wand", first}, {"hogwart", second}, {"owl post", third}] = results
+      assert_in_delta first, rrf(1), 1.0e-12
+      assert_in_delta second, rrf(2), 1.0e-12
+      assert_in_delta third, rrf(3), 1.0e-12
+    end
+
     test "full_text branch supports filter_type: :concat" do
       results =
         Post
