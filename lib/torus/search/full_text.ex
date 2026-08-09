@@ -47,6 +47,9 @@ defmodule Torus.Search.FullText do
 
   def branch(bindings, qualifiers, term, opts) do
     qualifiers = List.wrap(qualifiers)
+    # An empty term matches every row with a constant rank, which inside RRF fusion
+    # would boost `limit` arbitrary rows - so branches contribute no rows instead.
+    opts = Keyword.put_new(opts, :empty_return, false)
     options = parse_options(qualifiers, opts)
 
     filters =

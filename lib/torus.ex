@@ -522,11 +522,15 @@ defmodule Torus do
   are `{qualifiers, term}` or `{qualifiers, term, opts}` tuples mirroring the
   corresponding search macro's arguments.
 
-  Branch `opts` accept the search type's own options (except `:order` - branches are
-  always ranked best-first), plus:
+  Branch `opts` accept the search type's own options (except `:order`, `:score_key`,
+  and `:distance_key` - branches are always ranked best-first, and the fused score is
+  exposed by `hybrid/4` itself), plus:
 
     * `:weight` - multiplier for this branch's RRF score. Defaults to `1.0`.
     * `:limit` - how many top rows this branch contributes. Defaults to `20`.
+
+  In `full_text` branches `empty_return` defaults to `false`, so an empty search term
+  contributes no rows to the fusion instead of boosting arbitrary ones.
 
   ## Options
 

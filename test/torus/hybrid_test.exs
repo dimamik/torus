@@ -22,7 +22,7 @@ defmodule Torus.HybridTest do
           full_text: {[p.title, p.body], "wand"},
           similarity: {[p.title], "hogwarts"}
         )
-        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
         |> Repo.all()
 
       assert [{"hogwarts wand", first}, {"hogwart", second}, {"owl post", third}] = results
@@ -40,7 +40,7 @@ defmodule Torus.HybridTest do
           full_text: {[p.title, p.body], "wand", weight: 2.0},
           similarity: {[p.title], "hogwarts", weight: 0.5}
         )
-        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
         |> Repo.all()
 
       assert [{"hogwarts wand", first} | _rest] = results
@@ -54,11 +54,28 @@ defmodule Torus.HybridTest do
           similarity: {[p.title], "hogwarts", weight: 2.0},
           similarity: {[p.body], "wand", weight: 0.5}
         )
-        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
         |> Repo.all()
 
       assert [{"hogwarts wand", first}, _second, _third] = results
       assert_in_delta first, rrf(1, 60, 2.0) + rrf(1, 60, 0.5), 1.0e-12
+    end
+
+    test "an empty full_text term contributes no rows to the fusion" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], ""},
+          similarity: {[p.title], "hogwarts"}
+        )
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
+        |> Repo.all()
+
+      # Only the similarity branch contributes - full_text adds nothing for an empty term
+      assert [{"hogwarts wand", first}, {"hogwart", second}, {"owl post", third}] = results
+      assert_in_delta first, rrf(1), 1.0e-12
+      assert_in_delta second, rrf(2), 1.0e-12
+      assert_in_delta third, rrf(3), 1.0e-12
     end
 
     test "full_text branch supports filter_type: :concat" do
@@ -121,7 +138,7 @@ defmodule Torus.HybridTest do
       results =
         Post
         |> Torus.hybrid([p], [similarity: {[p.title], "hogwarts"}], k: 1)
-        |> select([p, torus_hybrid: f], {p.title, f.score})
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
         |> Repo.all()
 
       assert [{"hogwarts wand", first} | _rest] = results
@@ -253,7 +270,7 @@ defmodule Torus.HybridTest do
       results =
         Post
         |> Torus.hybrid([p], similarity: {[p.title], "same title"})
-        |> select([p, torus_hybrid: f], {p.id, f.score})
+        |> select([p, torus_hybrid: fused], {p.id, fused.score})
         |> Repo.all()
 
       assert Enum.map(results, &elem(&1, 0)) == Enum.map(posts, & &1.id)
@@ -324,6 +341,25 @@ defmodule Torus.HybridTest do
 
       assert_raise RuntimeError, ~r/`order` option is not supported/, fn ->
         Code.eval_string(code, [], __ENV__)
+      end
+    end
+
+    test "raises on the `score_key` and `distance_key` branch options" do
+      for branch <- [
+            ~s|bm25: {p.title, "hog", score_key: :score}|,
+            ~s|semantic: {p.embedding, "vector", distance_key: :distance}|
+          ] do
+        code = """
+        import Ecto.Query
+        import Torus
+        alias TorusTest.Post
+
+        Post |> Torus.hybrid([p], #{branch})
+        """
+
+        assert_raise RuntimeError, ~r/option is not supported in hybrid branches/, fn ->
+          Code.eval_string(code, [], __ENV__)
+        end
       end
     end
 
