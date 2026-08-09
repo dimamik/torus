@@ -5,16 +5,19 @@ defmodule Torus.QueryInspector do
   explain analyze returns more accurate results.
   """
 
-  alias Ecto.{Repo, Query}
+  alias Ecto.Adapters.SQL
+  alias Ecto.{Query, Repo}
 
   @doc """
-  Converts the query to SQL and prints it to the console. Returns the query.
+  Converts the query to SQL (with the parameters listed separately) and prints it to
+  the console. Returns the query.
   """
   @spec tap_sql(Query.t(), Repo.t(), :all | :update_all | :delete_all) :: Query.t()
   def tap_sql(query, repo, kind \\ :all) do
-    kind
-    |> Ecto.Adapters.SQL.to_sql(repo, query)
-    |> IO.puts()
+    {sql, params} = SQL.to_sql(kind, repo, query)
+
+    IO.puts(sql)
+    IO.puts("Params: #{inspect(params)}")
 
     query
   end
@@ -40,7 +43,7 @@ defmodule Torus.QueryInspector do
   **Runs the query!**
   """
   def explain_analyze(query, repo, kind \\ :all) do
-    Ecto.Adapters.SQL.explain(repo, kind, query, analyze: true)
+    SQL.explain(repo, kind, query, analyze: true)
   end
 
   @doc """
@@ -73,7 +76,7 @@ defmodule Torus.QueryInspector do
   @spec substituted_sql(Query.t(), Repo.t(), :all | :update_all | :delete_all) ::
           String.t()
   def substituted_sql(query, repo, kind \\ :all) do
-    {raw_log, params} = Ecto.Adapters.SQL.to_sql(kind, repo, query)
+    {raw_log, params} = SQL.to_sql(kind, repo, query)
 
     params
     |> Enum.with_index()

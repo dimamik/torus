@@ -1,3 +1,47 @@
+# v0.7.0
+
+## New 🔥
+
+**Hybrid Search** is now available via the new `Torus.hybrid/4` macro!
+
+Hybrid search fuses several search strategies into a single ranked query using [Reciprocal Rank Fusion](https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking) - the industry-standard way to combine keyword and semantic search. Rows that rank high in several branches win; rows found by only one branch still compete.
+
+```elixir
+search_vector = Torus.to_vector("magic school")
+
+Post
+|> Torus.hybrid([p], [
+     full_text: {[p.title, p.body], "magic school"},
+     semantic: {p.embedding, search_vector, weight: 2.0}
+   ], limit: 10)
+|> Repo.all()
+```
+
+Key features:
+
+- Fuses any combination of `full_text`, `bm25`, `similarity`, and `semantic` branches (the same type can appear more than once)
+- Per-branch `:weight` and `:limit`, tunable RRF `:k`
+- Everything runs in a single SQL query - the result is a regular Ecto query you can keep piping `select`, `preload`, or pagination onto
+- The fused score is available via the `:torus_hybrid` named binding or the `:score_key` option
+
+See the [Hybrid search guide](guides/hybrid_search.md) for details.
+
+## Improvements
+
+- Test suite now runs semantic (pgvector) integration tests on CI.
+
+## Breaking changes ⚠️
+
+- `Torus.Embeddings.NebulexCache` now targets Nebulex 3.0+. Nebulex 3.0 moved
+  `Nebulex.Adapters.Local` (the default adapter) to the separate `nebulex_local`
+  package - if you use the cache, upgrade `nebulex` to `>= 3.0.0` and add
+  `nebulex_local` to your dependencies.
+
+## Fixes
+
+- `Torus.QueryInspector.tap_sql/3` no longer crashes - it now prints the SQL and its
+  parameters and returns the query.
+
 # v0.6.0
 
 ## New 🔥

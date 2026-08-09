@@ -19,8 +19,8 @@ defmodule Torus.Case do
       import Torus
       import Torus.TestHelpers
 
-      alias Torus.TestHelpers, as: QueryInspector
       alias Torus.Test.Repo
+      alias Torus.TestHelpers, as: QueryInspector
       alias TorusTest.Author
       alias TorusTest.Post
 

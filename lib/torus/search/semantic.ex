@@ -83,6 +83,49 @@ defmodule Torus.Search.Semantic do
     end
   end
 
+  def branch(bindings, qualifier, vector_term, opts) do
+    distance = get_arg!(opts, :distance, :l2_distance, @distance_types)
+    operator = Map.fetch!(@vector_operators_map, distance)
+    pre_filter = Keyword.get(opts, :pre_filter, :none)
+
+    raise_if(
+      pre_filter != :none and not is_float(pre_filter),
+      "The `pre_filter` option in hybrid branches must be a literal float."
+    )
+
+    rank =
+      quote do
+        operator(unquote(qualifier), unquote(operator), ^unquote(vector_term))
+      end
+
+    filters =
+      if is_float(pre_filter) do
+        [
+          quote do
+            dynamic(
+              [unquote_splicing(bindings)],
+              operator(unquote(rank), "<", unquote(pre_filter))
+            )
+          end
+        ]
+      else
+        []
+      end
+
+    prelude =
+      quote do
+        if not is_struct(unquote(vector_term), Pgvector) do
+          raise """
+          `vector_term` should be a Pgvector struct.
+
+          The best way to generate it is to use `Torus.to_vector/1,2` or `Torus.to_vectors/1,2` functions.
+          """
+        end
+      end
+
+    {filters, :asc, rank, [prelude]}
+  end
+
   def to_vectors(terms, opts \\ []) do
     embedding_module =
       if opts[:embedding_module] do

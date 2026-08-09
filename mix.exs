@@ -64,12 +64,14 @@ defmodule Torus.MixProject do
 
   defp deps do
     [
-      {:ecto, "~> 3.0"},
-      {:ecto_sql, "~> 3.0"},
+      {:ecto, "~> 3.10"},
+      {:ecto_sql, "~> 3.10"},
       {:pgvector, "~> 0.3"},
       {:postgrex, ">= 0.0.0"},
       {:bumblebee, ">= 0.0.0", optional: true},
-      {:nebulex, ">= 0.0.0", optional: true},
+      {:nebulex, ">= 3.0.0", optional: true},
+      # Nebulex 3.0 moved Nebulex.Adapters.Local (our default adapter) to :nebulex_local
+      {:nebulex_local, ">= 3.0.0", optional: true},
       {:decorator, ">= 0.0.0", optional: true},
       {:nx, ">= 0.0.0", optional: true},
       {:req, ">= 0.0.0", optional: true},
@@ -115,6 +117,7 @@ defmodule Torus.MixProject do
   defp extras do
     [
       "guides/semantic_search.md",
+      "guides/hybrid_search.md",
       "CHANGELOG.md": [title: "Changelog"]
     ]
   end

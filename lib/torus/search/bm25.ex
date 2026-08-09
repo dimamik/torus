@@ -22,21 +22,7 @@ defmodule Torus.Search.BM25 do
       "The `index_name` option is required when using `score_threshold`."
     )
 
-    # Build the BM25 query fragments
-    # When index_name is provided, use to_bm25query(?, ?) for explicit index specification
-    # Otherwise use bare string literal (?) to let PostgreSQL auto-detect the index
-    {bm25query_fragment, bm25query_params} =
-      if index_name do
-        {
-          "to_bm25query(?, ?)",
-          [term, index_name]
-        }
-      else
-        {
-          "?",
-          [term]
-        }
-      end
+    {bm25query_fragment, bm25query_params} = query_parts(term, index_name)
 
     # Score fragment for ordering and selection
     score_fragment_string = "? <@> #{bm25query_fragment}"
@@ -117,6 +103,78 @@ defmodule Torus.Search.BM25 do
           %{unquote(score_key) => unquote(score_fragment)}
         )
       end)
+    end
+  end
+
+  def branch(bindings, qualifier, term, opts) do
+    index_name = Keyword.get(opts, :index_name, nil)
+    pre_filter = get_arg!(opts, :pre_filter, false, [true, false])
+    score_threshold = Keyword.get(opts, :score_threshold, nil)
+
+    raise_if(
+      score_threshold != nil and index_name == nil,
+      "The `index_name` option is required when using `score_threshold`."
+    )
+
+    {bm25query_fragment, bm25query_params} = query_parts(term, index_name)
+    params_asts = Enum.map(bm25query_params, fn param -> quote do: ^unquote(param) end)
+
+    rank =
+      quote do
+        fragment(
+          unquote("? <@> #{bm25query_fragment}"),
+          unquote(qualifier),
+          unquote_splicing(params_asts)
+        )
+      end
+
+    pre_filter_filters =
+      if pre_filter do
+        [
+          quote do
+            dynamic(
+              [unquote_splicing(bindings)],
+              fragment(
+                unquote("? <@> #{bm25query_fragment} < 0"),
+                unquote(qualifier),
+                unquote_splicing(params_asts)
+              )
+            )
+          end
+        ]
+      else
+        []
+      end
+
+    threshold_filters =
+      if score_threshold != nil do
+        [
+          quote do
+            dynamic(
+              [unquote_splicing(bindings)],
+              fragment(
+                unquote("? <@> #{bm25query_fragment} < ?"),
+                unquote(qualifier),
+                unquote_splicing(params_asts),
+                ^unquote(score_threshold)
+              )
+            )
+          end
+        ]
+      else
+        []
+      end
+
+    {pre_filter_filters ++ threshold_filters, :asc, rank, []}
+  end
+
+  # When index_name is provided, use to_bm25query(?, ?) for explicit index specification
+  # Otherwise use bare string literal (?) to let PostgreSQL auto-detect the index
+  defp query_parts(term, index_name) do
+    if index_name do
+      {"to_bm25query(?, ?)", [term, index_name]}
+    else
+      {"?", [term]}
     end
   end
 end

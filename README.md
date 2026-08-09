@@ -129,9 +129,26 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
    See [`semantic/5`](https://hexdocs.pm/torus/Torus.html#semantic/5) for more details.
 
-1. **Hybrid Search**: Combines multiple search techniques (e.g., keyword and semantic) to leverage their strengths for more accurate results.
+1. **Hybrid Search**: Combines multiple search techniques (e.g., keyword and semantic) to leverage their strengths for more accurate results. Fusion happens in a single SQL query using [Reciprocal Rank Fusion](https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking): each branch ranks its best rows, and rows are merged by summing `weight * 1.0 / (k + rank)` across branches.
 
-   Will be added soon.
+   ```elixir
+   insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
+   insert_post!(title: "Diagon Bombshell", body: "Secrets uncovered in the heart of Hogwarts.")
+   insert_post!(title: "Completely unrelated", body: "No magic here!")
+
+   Post
+   |> Torus.hybrid([p], [
+        full_text: {[p.title, p.body], "uncov hogwar"},
+        similarity: {[p.title], "hogwarts"}
+      ])
+   |> select([p], p.title)
+   |> Repo.all()
+   ["Diagon Bombshell", "Hogwarts Shocker", "Completely unrelated"]
+   ```
+
+   Use it when no single search type is good enough - typically combining keyword search (`full_text` or `bm25`) with `semantic` search for RAG and retrieval pipelines.
+
+   See [`hybrid/4`](https://hexdocs.pm/torus/Torus.html#hybrid/4) and the [Hybrid search guide](/guides/hybrid_search.md) for more details.
 
 1. **3rd Party Engines/Providers**: Utilizes external services or software specifically designed for optimized and scalable search capabilities, such as Elasticsearch or Algolia.
 
@@ -154,7 +171,7 @@ Torus offers a few helpers to debug, explain, and analyze your queries before us
 
 ## Torus support
 
-For now, Torus supports pattern match, similarity, full-text (TF-IDF and BM25), and semantic search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
+For now, Torus supports pattern match, similarity, full-text (TF-IDF and BM25), semantic, and hybrid search, with plans to expand support further. These docs will be updated with more examples on which search type to choose and how to make them more performant (by adding indexes or using specific functions).
 
 <!-- MDOC -->
 
