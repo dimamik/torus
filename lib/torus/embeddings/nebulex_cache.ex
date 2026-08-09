@@ -1,4 +1,11 @@
-if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded(Decorator.Decorate) do
+# Nebulex 3.0 ships the default local adapter in the separate :nebulex_local package,
+# so the cache can only compile when the configured (or default) adapter is present.
+nebulex_cache_adapter =
+  Application.get_env(:torus, Torus.Embeddings.NebulexCache, [])[:adapter] ||
+    Nebulex.Adapters.Local
+
+if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded?(Decorator.Decorate) and
+     Code.ensure_loaded?(nebulex_cache_adapter) do
   defmodule Torus.Embeddings.NebulexCache do
     @moduledoc """
     Caching layer for the embedding module.
@@ -89,8 +96,9 @@ else
     """
 
     @error_message """
-    You need to add `:nebulex`, `:nebulex_local` (for the default local adapter), and
-    `:decorator` to your dependencies in order to use the Nebulex cache.
+    You need to add `:nebulex`, `:nebulex_local` (for the default local adapter, or your
+    configured `:adapter`'s package), and `:decorator` to your dependencies in order to
+    use the Nebulex cache.
     """
 
     @behaviour Torus.Embedding

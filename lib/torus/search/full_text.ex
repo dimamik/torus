@@ -47,12 +47,21 @@ defmodule Torus.Search.FullText do
 
   def branch(bindings, qualifiers, term, opts) do
     qualifiers = List.wrap(qualifiers)
+    # An empty term matches every row with a constant rank, which inside RRF fusion
+    # would boost `limit` arbitrary rows - so branches contribute no rows instead.
+    opts = Keyword.put_new(opts, :empty_return, false)
     options = parse_options(qualifiers, opts)
 
     filters =
       case options.filter_type do
         :none ->
-          []
+          # No user filter, but an empty term must still contribute no rows -
+          # otherwise its constant rank boosts `limit` arbitrary rows in the fusion
+          if options.empty_return == "FALSE" do
+            [non_empty_term_filter(term, options)]
+          else
+            []
+          end
 
         :or ->
           [or_filter_ast(bindings, qualifiers, term, opts)]
@@ -155,6 +164,15 @@ defmodule Torus.Search.FullText do
           unquote(query_text)
         )
       end
+    end
+  end
+
+  defp non_empty_term_filter(term, options) do
+    %{language: language, term_function: term_function} = options
+    non_empty_string = "trim(#{term_function}(#{language}, ?)::text) <> ''"
+
+    quote do
+      dynamic([], fragment(unquote(non_empty_string), ^unquote(term)))
     end
   end
 

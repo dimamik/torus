@@ -14,6 +14,12 @@ defmodule Torus.Search.Hybrid do
 
   @branch_types Map.keys(@search_modules)
 
+  @unsupported_branch_options [
+    order: "branches are always ranked best-first",
+    score_key: "the fused score is exposed by `hybrid/4` itself",
+    distance_key: "the fused score is exposed by `hybrid/4` itself"
+  ]
+
   def hybrid(query, bindings, searches, opts) do
     k = Keyword.get(opts, :k, 60)
     final_limit = Keyword.get(opts, :limit, :none)
@@ -45,11 +51,12 @@ defmodule Torus.Search.Hybrid do
         {weight, branch_opts} = Keyword.pop(branch_opts, :weight, 1.0)
         {branch_limit, branch_opts} = Keyword.pop(branch_opts, :limit, 20)
 
-        raise_if(
-          Keyword.has_key?(branch_opts, :order),
-          "The `order` option is not supported in hybrid branches - " <>
-            "branches are always ranked best-first."
-        )
+        for {option, explanation} <- @unsupported_branch_options do
+          raise_if(
+            Keyword.has_key?(branch_opts, option),
+            "The `#{option}` option is not supported in hybrid branches - #{explanation}."
+          )
+        end
 
         validate_weight!(weight)
         validate_branch_limit!(branch_limit)
@@ -74,8 +81,12 @@ defmodule Torus.Search.Hybrid do
         branch_query = branch_ast(branch, bindings, source)
 
         quote do
-          from(s in subquery(unquote(branch_query)),
-            select: %{id: s.id, rank: s.rank, weight: type(^unquote(branch.weight), :float)}
+          from(branch_row in subquery(unquote(branch_query)),
+            select: %{
+              id: branch_row.id,
+              rank: branch_row.rank,
+              weight: type(^unquote(branch.weight), :float)
+            }
           )
         end
       end
@@ -89,11 +100,19 @@ defmodule Torus.Search.Hybrid do
 
     fused =
       quote do
-        from(b in subquery(unquote(unioned)),
-          group_by: b.id,
+        from(union_row in subquery(unquote(unioned)),
+          group_by: union_row.id,
           select: %{
-            id: b.id,
-            score: sum(fragment("? * (1.0 / (? + ?))", b.weight, ^unquote(k), b.rank))
+            id: union_row.id,
+            score:
+              sum(
+                fragment(
+                  "? * (1.0 / (? + ?))",
+                  union_row.weight,
+                  ^unquote(k),
+                  union_row.rank
+                )
+              )
           }
         )
       end
@@ -117,12 +136,12 @@ defmodule Torus.Search.Hybrid do
           |> Ecto.Query.exclude(:offset)
 
         torus_hybrid_source_query
-        |> join(:inner, [unquote_splicing(bindings)], f in subquery(unquote(fused)),
-          on: field(unquote(source), ^torus_hybrid_primary_key) == f.id,
+        |> join(:inner, [unquote_splicing(bindings)], fused_row in subquery(unquote(fused)),
+          on: field(unquote(source), ^torus_hybrid_primary_key) == fused_row.id,
           as: :torus_hybrid
         )
-        |> order_by([unquote_splicing(bindings), torus_hybrid: f], [
-          {:desc, f.score},
+        |> order_by([unquote_splicing(bindings), torus_hybrid: fused_row], [
+          {:desc, fused_row.score},
           {:asc, field(unquote(source), ^torus_hybrid_primary_key)}
         ])
       end
@@ -141,8 +160,8 @@ defmodule Torus.Search.Hybrid do
     else
       quote do
         unquote(final)
-        |> select_merge([unquote_splicing(bindings), torus_hybrid: f], %{
-          unquote(score_key) => f.score
+        |> select_merge([unquote_splicing(bindings), torus_hybrid: fused_row], %{
+          unquote(score_key) => fused_row.score
         })
       end
     end

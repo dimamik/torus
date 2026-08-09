@@ -32,6 +32,8 @@ See the [Hybrid search guide](guides/hybrid_search.md) for details.
 
 ## Breaking changes ⚠️
 
+- Torus now requires `ecto`/`ecto_sql` `~> 3.10` (hybrid search relies on
+  `selected_as/2` and ordering by select aliases). Upgrade Ecto before bumping Torus.
 - `Torus.Embeddings.NebulexCache` now targets Nebulex 3.0+. Nebulex 3.0 moved
   `Nebulex.Adapters.Local` (the default adapter) to the separate `nebulex_local`
   package - if you use the cache, upgrade `nebulex` to `>= 3.0.0` and add

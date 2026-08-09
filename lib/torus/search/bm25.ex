@@ -4,11 +4,12 @@ defmodule Torus.Search.BM25 do
   import Ecto.Query, warn: false
 
   @order_types ~w[asc desc none]a
+  @true_false ~w(true false)a
 
   def bm25(query, bindings, qualifier, term, opts \\ []) do
     order = get_arg!(opts, :order, :asc, @order_types)
     index_name = Keyword.get(opts, :index_name, nil)
-    pre_filter = get_arg!(opts, :pre_filter, false, [true, false])
+    pre_filter = get_arg!(opts, :pre_filter, false, @true_false)
     score_key = Keyword.get(opts, :score_key, :none)
     score_threshold = Keyword.get(opts, :score_threshold, nil)
 
@@ -108,7 +109,7 @@ defmodule Torus.Search.BM25 do
 
   def branch(bindings, qualifier, term, opts) do
     index_name = Keyword.get(opts, :index_name, nil)
-    pre_filter = get_arg!(opts, :pre_filter, false, [true, false])
+    pre_filter = get_arg!(opts, :pre_filter, false, @true_false)
     score_threshold = Keyword.get(opts, :score_threshold, nil)
 
     raise_if(

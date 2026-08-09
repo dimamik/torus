@@ -41,10 +41,12 @@ For generating and storing the embeddings that the `semantic` branch needs, see 
 
 Branches are a keyword list of `{qualifiers, term}` or `{qualifiers, term, opts}` tuples, mirroring the arguments of the corresponding search macro. Supported types: `:full_text`, `:bm25`, `:similarity`, and `:semantic`. Pattern-match searches (`like`, `ilike`, `similar_to`) have no ranking, so they can't participate.
 
-Each branch accepts its search type's own options (except `:order`), plus:
+Each branch accepts its search type's own options (except `:order`, `:score_key`, and `:distance_key` - branches are always ranked best-first, and the fused score is exposed by `hybrid/4` itself), plus:
 
 - `:weight` - multiplier for the branch's contribution (default `1.0`)
 - `:limit` - how many top rows the branch contributes (default `20`)
+
+In `full_text` branches `empty_return` defaults to `false`, so an empty search term contributes no rows to the fusion instead of boosting arbitrary ones.
 
 The same type can appear more than once - for example two `semantic` branches over different embedding columns, or two `similarity` branches over different fields:
 
@@ -65,7 +67,7 @@ The fused score is exposed through the `:torus_hybrid` named binding:
 ```elixir
 Post
 |> Torus.hybrid([p], full_text: {[p.title], term}, semantic: {p.embedding, vector})
-|> select([p, torus_hybrid: f], %{title: p.title, score: f.score})
+|> select([p, torus_hybrid: fused], %{title: p.title, score: fused.score})
 |> Repo.all()
 ```
 
