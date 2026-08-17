@@ -76,6 +76,13 @@ if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded?(Decorator.Decorate) and
 
     @behaviour Torus.Embedding
 
+    # Torus-specific keys share the cache's config block - strip them before
+    # Nebulex 3 strictly validates the adapter options on startup.
+    @impl Nebulex.Cache
+    def init(config) do
+      {:ok, Keyword.drop(config, ~w(cache otp_app adapter embedding_module)a)}
+    end
+
     @impl true
     def embedding_model(opts) do
       get_option!(opts, __MODULE__, :embedding_module).embedding_model

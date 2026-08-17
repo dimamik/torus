@@ -45,6 +45,7 @@ Each branch accepts its search type's own options (except `:order`, `:score_key`
 
 - `:weight` - multiplier for the branch's contribution (default `1.0`)
 - `:limit` - how many top rows the branch contributes (default `20`)
+- `:highlight` - a keyword list of result keys to columns to highlight the branch's term matches in, e.g. `highlight: [title: p.title]` (not supported in `:semantic` branches, see [`highlight/3`](https://hexdocs.pm/torus/Torus.html#highlight/3))
 
 In `full_text` branches `empty_return` defaults to `false`, so an empty search term contributes no rows to the fusion instead of boosting arbitrary ones.
 

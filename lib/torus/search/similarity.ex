@@ -2,6 +2,8 @@ defmodule Torus.Search.Similarity do
   @moduledoc false
   import Torus.Search.Common
 
+  alias Torus.Search.Highlight
+
   @order_types ~w[asc desc none]a
   @similarity_types ~w[word_similarity similarity strict_word_similarity]a
   @true_false ~w[true false]a
@@ -21,37 +23,48 @@ defmodule Torus.Search.Similarity do
     multiple_qualifiers = length(qualifiers) > 1
 
     # Query building
-    quote do
-      unquote(query)
-      |> apply_if(unquote(pre_filter) and unquote(multiple_qualifiers), fn query ->
-        where(
-          query,
-          [unquote_splicing(bindings)],
-          operator(^unquote(term), unquote(similarity_operator), concat_ws(unquote(qualifiers)))
-        )
-      end)
-      |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers), fn query ->
-        where(
-          query,
-          [unquote_splicing(bindings)],
-          operator(^unquote(term), unquote(similarity_operator), unquote(List.first(qualifiers)))
-        )
-      end)
-      |> apply_if(unquote(order) != :none and unquote(multiple_qualifiers), fn query ->
-        order_by(
-          query,
-          [unquote_splicing(bindings)],
-          fragment(unquote(similarity_function), ^unquote(term), concat_ws(unquote(qualifiers)))
-        )
-      end)
-      |> apply_if(unquote(order) != :none and not unquote(multiple_qualifiers), fn query ->
-        order_by(
-          query,
-          [unquote_splicing(bindings)],
-          fragment(unquote(similarity_function), ^unquote(term), unquote(List.first(qualifiers)))
-        )
-      end)
-    end
+    query_ast =
+      quote do
+        unquote(query)
+        |> apply_if(unquote(pre_filter) and unquote(multiple_qualifiers), fn query ->
+          where(
+            query,
+            [unquote_splicing(bindings)],
+            operator(^unquote(term), unquote(similarity_operator), concat_ws(unquote(qualifiers)))
+          )
+        end)
+        |> apply_if(unquote(pre_filter) and not unquote(multiple_qualifiers), fn query ->
+          where(
+            query,
+            [unquote_splicing(bindings)],
+            operator(
+              ^unquote(term),
+              unquote(similarity_operator),
+              unquote(List.first(qualifiers))
+            )
+          )
+        end)
+        |> apply_if(unquote(order) != :none and unquote(multiple_qualifiers), fn query ->
+          order_by(
+            query,
+            [unquote_splicing(bindings)],
+            fragment(unquote(similarity_function), ^unquote(term), concat_ws(unquote(qualifiers)))
+          )
+        end)
+        |> apply_if(unquote(order) != :none and not unquote(multiple_qualifiers), fn query ->
+          order_by(
+            query,
+            [unquote_splicing(bindings)],
+            fragment(
+              unquote(similarity_function),
+              ^unquote(term),
+              unquote(List.first(qualifiers))
+            )
+          )
+        end)
+      end
+
+    Highlight.merge_highlight(query_ast, bindings, term, opts, :word)
   end
 
   def branch(bindings, qualifiers, term, opts) do

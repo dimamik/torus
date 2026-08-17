@@ -26,6 +26,29 @@ Key features:
 
 See the [Hybrid search guide](guides/hybrid_search.md) for details.
 
+**Match highlighting** is now available via the new `Torus.highlight/3` macro!
+
+Built on PostgreSQL's `ts_headline`, it wraps matches of the term in the selected text (in `<b>` tags by default) and can also return snippets instead of the full text. A `type: :substring` mode highlights matches inside words, pairing with `ilike`/`like` searches.
+
+The simplest way to use it is the new `:highlight` option on `full_text`, `bm25`, `similarity`, `ilike`, `like`, and `hybrid` branches - just point it at the columns, the search's own term and options are reused:
+
+```elixir
+Post
+|> Torus.full_text([p], [p.title, p.body], "shocker", highlight: [title: p.title])
+|> Repo.all()
+# => [%Post{title: "Hogwarts <b>Shocker</b>", ...}]
+```
+
+Or standalone in any `select`/`select_merge` via `Torus.highlight/3`:
+
+```elixir
+Post
+|> Torus.full_text([p], [p.title, p.body], "shocker")
+|> select([p], Torus.highlight(p.title, "shocker"))
+|> Repo.all()
+# => ["Hogwarts <b>Shocker</b>"]
+```
+
 ## Improvements
 
 - Test suite now runs semantic (pgvector) integration tests on CI.

@@ -3,6 +3,8 @@ defmodule Torus.Search.BM25 do
   import Torus.Search.Common
   import Ecto.Query, warn: false
 
+  alias Torus.Search.Highlight
+
   @order_types ~w[asc desc none]a
   @true_false ~w(true false)a
 
@@ -61,50 +63,53 @@ defmodule Torus.Search.BM25 do
     pre_filter_fragment_string = "? <@> #{bm25query_fragment} < 0"
 
     # Build the query
-    quote do
-      unquote(query)
-      |> apply_if(unquote(pre_filter), fn q ->
-        where(
-          q,
-          [unquote_splicing(bindings)],
-          fragment(
-            unquote(pre_filter_fragment_string),
-            unquote(qualifier),
-            unquote_splicing(
-              Enum.map(bm25query_params, fn param ->
-                quote do: ^unquote(param)
-              end)
+    query_ast =
+      quote do
+        unquote(query)
+        |> apply_if(unquote(pre_filter), fn q ->
+          where(
+            q,
+            [unquote_splicing(bindings)],
+            fragment(
+              unquote(pre_filter_fragment_string),
+              unquote(qualifier),
+              unquote_splicing(
+                Enum.map(bm25query_params, fn param ->
+                  quote do: ^unquote(param)
+                end)
+              )
             )
           )
-        )
-      end)
-      |> apply_if(unquote(score_threshold) != nil, fn q ->
-        where(
-          q,
-          [unquote_splicing(bindings)],
-          fragment(
-            unquote(threshold_fragment_string),
-            unquote(qualifier),
-            unquote_splicing(
-              Enum.map(bm25query_params, fn param ->
-                quote do: ^unquote(param)
-              end)
-            ),
-            ^unquote(score_threshold)
+        end)
+        |> apply_if(unquote(score_threshold) != nil, fn q ->
+          where(
+            q,
+            [unquote_splicing(bindings)],
+            fragment(
+              unquote(threshold_fragment_string),
+              unquote(qualifier),
+              unquote_splicing(
+                Enum.map(bm25query_params, fn param ->
+                  quote do: ^unquote(param)
+                end)
+              ),
+              ^unquote(score_threshold)
+            )
           )
-        )
-      end)
-      |> apply_if(unquote(order) != :none, fn q ->
-        order_by(q, [unquote_splicing(bindings)], unquote(order_fragment))
-      end)
-      |> apply_if(unquote(score_key) != :none, fn q ->
-        select_merge(
-          q,
-          [unquote_splicing(bindings)],
-          %{unquote(score_key) => unquote(score_fragment)}
-        )
-      end)
-    end
+        end)
+        |> apply_if(unquote(order) != :none, fn q ->
+          order_by(q, [unquote_splicing(bindings)], unquote(order_fragment))
+        end)
+        |> apply_if(unquote(score_key) != :none, fn q ->
+          select_merge(
+            q,
+            [unquote_splicing(bindings)],
+            %{unquote(score_key) => unquote(score_fragment)}
+          )
+        end)
+      end
+
+    Highlight.merge_highlight(query_ast, bindings, term, opts, :word)
   end
 
   def branch(bindings, qualifier, term, opts) do

@@ -1,7 +1,9 @@
 defmodule Torus.Search.PatternMatch do
   @moduledoc false
 
-  def ilike(query, bindings, qualifiers, term) do
+  alias Torus.Search.Highlight
+
+  def ilike(query, bindings, qualifiers, term, opts) do
     qualifiers = List.wrap(qualifiers)
 
     where_ast =
@@ -14,12 +16,15 @@ defmodule Torus.Search.PatternMatch do
         end
       end)
 
-    quote do
-      where(unquote(query), ^unquote(where_ast))
-    end
+    query_ast =
+      quote do
+        where(unquote(query), ^unquote(where_ast))
+      end
+
+    Highlight.merge_highlight(query_ast, bindings, sanitized(term), opts, :substring)
   end
 
-  def like(query, bindings, qualifiers, term) do
+  def like(query, bindings, qualifiers, term, opts) do
     qualifiers = List.wrap(qualifiers)
 
     where_ast =
@@ -32,8 +37,18 @@ defmodule Torus.Search.PatternMatch do
         end
       end)
 
+    query_ast =
+      quote do
+        where(unquote(query), ^unquote(where_ast))
+      end
+
+    opts = Keyword.put_new(opts, :case_sensitive, true)
+    Highlight.merge_highlight(query_ast, bindings, sanitized(term), opts, :substring)
+  end
+
+  defp sanitized(term) do
     quote do
-      where(unquote(query), ^unquote(where_ast))
+      Torus.sanitize(unquote(term))
     end
   end
 
