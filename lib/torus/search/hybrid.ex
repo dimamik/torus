@@ -31,6 +31,10 @@ defmodule Torus.Search.Hybrid do
     validate_score_key!(score_key)
     validate_k!(k)
 
+    if final_limit != :none do
+      validate_limit!(final_limit, "The `limit` option")
+    end
+
     raise_if(
       not (is_list(searches) and searches != [] and
              Enum.all?(searches, &match?({type, _spec} when type in @branch_types, &1))),
@@ -194,7 +198,7 @@ defmodule Torus.Search.Hybrid do
     )
 
     validate_weight!(weight)
-    validate_branch_limit!(branch_limit)
+    validate_limit!(branch_limit, "The `limit` of a hybrid branch")
 
     {filters, direction, rank, preludes} = module.branch(bindings, qualifiers, term, branch_opts)
 
@@ -217,6 +221,8 @@ defmodule Torus.Search.Hybrid do
         end
       end)
 
+    direction = if branch.direction == :desc, do: :desc_nulls_last, else: branch.direction
+
     quote do
       unquote(filtered)
       |> select([unquote_splicing(bindings)], %{
@@ -225,7 +231,7 @@ defmodule Torus.Search.Hybrid do
           selected_as(
             over(row_number(),
               order_by: [
-                {unquote(branch.direction), unquote(branch.rank)},
+                {unquote(direction), unquote(branch.rank)},
                 {:asc, field(unquote(source), ^torus_hybrid_primary_key)}
               ]
             ),
@@ -263,13 +269,13 @@ defmodule Torus.Search.Hybrid do
     )
   end
 
-  defp validate_branch_limit!(branch_limit) do
-    branch_limit = literal_number(branch_limit)
+  defp validate_limit!(limit, description) do
+    limit = literal_number(limit)
 
     raise_if(
-      is_binary(branch_limit) or is_atom(branch_limit) or is_list(branch_limit) or
-        is_float(branch_limit) or (is_integer(branch_limit) and branch_limit <= 0),
-      "The `limit` of a hybrid branch must be a positive integer."
+      is_binary(limit) or is_atom(limit) or is_list(limit) or
+        is_float(limit) or (is_integer(limit) and limit <= 0),
+      "#{description} must be a positive integer."
     )
   end
 

@@ -32,6 +32,14 @@ defmodule Torus.Search.Common do
     if condition, do: query_fun.(query), else: query
   end
 
+  # An empty term degenerates ranking (every row ties), which inside RRF fusion
+  # would boost arbitrary rows - hybrid branches filter it out with this.
+  def non_empty_term_filter(term) do
+    quote do
+      dynamic([], fragment("trim(?) <> ''", ^unquote(term)))
+    end
+  end
+
   @doc false
   def apply_case(query, case_condition, query_fun) do
     query_fun.(case_condition, query)

@@ -19,7 +19,11 @@ defmodule Torus.Search.FullText do
     filter_type = options.filter_type
 
     # Arguments preparation
-    desc_asc = parse_order(order)
+    desc_asc =
+      case parse_order(order) do
+        "DESC" -> "DESC NULLS LAST"
+        other -> other
+      end
 
     concat_filter_fragment = concat_filter_fragment(qualifiers, term, options)
     order_fragment = rank_fragment(qualifiers, term, options, " #{desc_asc}")
@@ -62,10 +66,10 @@ defmodule Torus.Search.FullText do
         :none ->
           # No user filter, but an empty term must still contribute no rows -
           # otherwise its constant rank boosts `limit` arbitrary rows in the fusion
-          if options.empty_return == "FALSE" do
-            [non_empty_term_filter(term, options)]
-          else
+          if options.empty_return do
             []
+          else
+            [non_empty_tsquery_filter(term, options)]
           end
 
         :or ->
@@ -111,7 +115,7 @@ defmodule Torus.Search.FullText do
 
     raise_if(
       length(rank_weights) < length(qualifiers),
-      "The length of `rank_weights` should be the same as the length of the qualifiers."
+      "`rank_weights` should have at least as many weights as there are qualifiers."
     )
 
     raise_if(
@@ -122,7 +126,8 @@ defmodule Torus.Search.FullText do
     %{
       language: language,
       prefix_search: prefix_search,
-      empty_return: empty_return |> to_string() |> String.upcase(),
+      empty_return: empty_return,
+      empty_return_sql: empty_return |> to_string() |> String.upcase(),
       term_function: term_function,
       rank_function: rank_function,
       filter_type: filter_type,
@@ -172,7 +177,7 @@ defmodule Torus.Search.FullText do
     end
   end
 
-  defp non_empty_term_filter(term, options) do
+  defp non_empty_tsquery_filter(term, options) do
     %{language: language, term_function: term_function} = options
     non_empty_string = "trim(#{term_function}(#{language}, ?)::text) <> ''"
 
@@ -197,7 +202,7 @@ defmodule Torus.Search.FullText do
     %{
       language: language,
       prefix_search: prefix_search,
-      empty_return: empty_return,
+      empty_return_sql: empty_return_sql,
       term_function: term_function,
       prefix_string: prefix_string,
       weighted_columns: weighted_columns
@@ -210,7 +215,7 @@ defmodule Torus.Search.FullText do
       # We need to handle empty strings for prefix search queries
       concat_filter_string = """
       CASE
-          WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN #{empty_return}
+          WHEN trim(#{term_function}(#{language}, ?)::text) = '' THEN #{empty_return_sql}
           ELSE #{concat_filter_string}
       END
       """

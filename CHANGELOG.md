@@ -66,6 +66,13 @@ Post
 
 - `Torus.QueryInspector.tap_sql/3` no longer crashes - it now prints the SQL and its
   parameters and returns the query.
+- `Torus.similarity/5` and `Torus.full_text/5` with `order: :desc` (the default) now
+  order with `NULLS LAST`, so rows whose search column is `NULL` no longer rank above
+  actual matches. Hybrid branches rank the same way.
+- `Torus.Embeddings.NebulexCache.embedding_model/1` no longer raises - it now passes
+  the options through to the underlying embedding module.
+- Empty search terms contribute no rows in `similarity` and `bm25` hybrid branches
+  (matching `full_text` branches), instead of boosting arbitrary rows.
 
 # v0.6.0
 

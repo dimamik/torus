@@ -18,7 +18,12 @@ defmodule Torus.Search.Similarity do
     # Arguments preparation
     {similarity_function, similarity_operator} = similarity_parts(similarity_type)
 
-    desc_asc_string = parse_order(order)
+    desc_asc_string =
+      case parse_order(order) do
+        "DESC" -> "DESC NULLS LAST"
+        other -> other
+      end
+
     similarity_function = "#{similarity_function}(?, ?) #{desc_asc_string}"
     multiple_qualifiers = length(qualifiers) > 1
 
@@ -80,7 +85,7 @@ defmodule Torus.Search.Similarity do
         List.first(qualifiers)
       end
 
-    filters =
+    pre_filter_filters =
       if pre_filter do
         [
           quote do
@@ -93,6 +98,8 @@ defmodule Torus.Search.Similarity do
       else
         []
       end
+
+    filters = [non_empty_term_filter(term) | pre_filter_filters]
 
     rank =
       quote do

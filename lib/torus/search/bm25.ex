@@ -171,7 +171,10 @@ defmodule Torus.Search.BM25 do
         []
       end
 
-    {pre_filter_filters ++ threshold_filters, :asc, rank, []}
+    # An empty term must contribute no rows to the fusion - see non_empty_term_filter
+    filters = [non_empty_term_filter(term) | pre_filter_filters ++ threshold_filters]
+
+    {filters, :asc, rank, []}
   end
 
   # When index_name is provided, use to_bm25query(?, ?) for explicit index specification

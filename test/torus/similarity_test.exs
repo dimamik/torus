@@ -7,7 +7,7 @@ defmodule Torus.SimilarityTest do
       insert_post!(title: "hogwarts lives there")
 
       sql =
-        "SELECT p0.\"title\" FROM \"posts\" AS p0 ORDER BY word_similarity('hogwarts', p0.\"title\") DESC"
+        "SELECT p0.\"title\" FROM \"posts\" AS p0 ORDER BY word_similarity('hogwarts', p0.\"title\") DESC NULLS LAST"
 
       assert ^sql =
                Post
@@ -48,7 +48,7 @@ defmodule Torus.SimilarityTest do
                |> select([p], p.title)
                |> Repo.one!()
 
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 WHERE ('foo' <<% p0."title") ORDER BY strict_word_similarity('foo', p0."title") DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 WHERE ('foo' <<% p0."title") ORDER BY strict_word_similarity('foo', p0."title") DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], p.title, "foo",
                  type: :strict_word_similarity,
@@ -67,7 +67,7 @@ defmodule Torus.SimilarityTest do
                |> select([p], p.title)
                |> Repo.one!()
 
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY similarity('foo', p0."title") DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY similarity('foo', p0."title") DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], p.title, "foo", type: :similarity)
                |> select([p], p.title)
@@ -86,13 +86,13 @@ defmodule Torus.SimilarityTest do
                |> select([p], p.title)
                |> Repo.all()
 
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', p0."title") DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', p0."title") DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], p.title, "foo")
                |> select([p], p.title)
                |> QueryInspector.substituted_sql()
 
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', p0."title") DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', p0."title") DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], p.title, "foo", order: :desc)
                |> select([p], p.title)
@@ -135,7 +135,7 @@ defmodule Torus.SimilarityTest do
 
   describe "similarity/5 - pre_filter" do
     test ":pre_filter - defaults to `false`" do
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', p0."title") DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', p0."title") DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], p.title, "foo")
                |> select([p], p.title)
@@ -143,7 +143,7 @@ defmodule Torus.SimilarityTest do
     end
 
     test ":pre_filter - `true`" do
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 WHERE ('foo' <% p0."title") ORDER BY word_similarity('foo', p0."title") DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 WHERE ('foo' <% p0."title") ORDER BY word_similarity('foo', p0."title") DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], p.title, "foo", pre_filter: true)
                |> select([p], p.title)
@@ -159,7 +159,7 @@ defmodule Torus.SimilarityTest do
       # We set a bigger similarity threshold to ensure we get more relevant results
       Repo.query!("SET pg_trgm.word_similarity_threshold = 0.3")
 
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 WHERE ('howarts' <% concat_ws(' ', p0."title", p0."body")) ORDER BY word_similarity('howarts', concat_ws(' ', p0."title", p0."body")) DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 WHERE ('howarts' <% concat_ws(' ', p0."title", p0."body")) ORDER BY word_similarity('howarts', concat_ws(' ', p0."title", p0."body")) DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], [p.title, p.body], "howarts", pre_filter: true)
                |> select([p], p.title)
@@ -179,15 +179,31 @@ defmodule Torus.SimilarityTest do
       insert_post!(title: "foo", body: nil)
       insert_post!(title: nil, body: nil)
 
-      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', concat_ws(' ', p0."title", p0."body")) DESC| =
+      assert ~s|SELECT p0."title" FROM "posts" AS p0 ORDER BY word_similarity('foo', concat_ws(' ', p0."title", p0."body")) DESC NULLS LAST| =
                Post
                |> Torus.similarity([p], [p.title, p.body], "foo")
                |> select([p], p.title)
                |> QueryInspector.substituted_sql()
 
-      assert [nil, "foo", nil] =
+      results =
+        Post
+        |> Torus.similarity([p], [p.title, p.body], "foo")
+        |> select([p], p.title)
+        |> Repo.all()
+
+      # The two matching rows tie at similarity 1.0, so their order is undefined;
+      # the row with both columns NULL always ranks last
+      assert [nil, "foo"] = results |> Enum.take(2) |> Enum.sort()
+      assert [nil] = Enum.drop(results, 2)
+    end
+
+    test "orders rows with NULL search columns last" do
+      insert_post!(title: nil, body: "no title at all")
+      insert_post!(title: "hogwarts wand")
+
+      assert ["hogwarts wand", nil] =
                Post
-               |> Torus.similarity([p], [p.title, p.body], "foo")
+               |> Torus.similarity([p], [p.title], "hogwarts")
                |> select([p], p.title)
                |> Repo.all()
     end

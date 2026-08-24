@@ -17,7 +17,7 @@ The package can be installed by adding `torus` to your list of dependencies in `
 ```elixir
 def deps do
   [
-    {:torus, "~> 0.6"}
+    {:torus, "~> 0.7"}
   ]
 end
 ```
@@ -109,7 +109,7 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
    See [`bm25/5`](https://hexdocs.pm/torus/Torus.html#bm25/5) and the [BM25 Search Guide](https://dimamik.com/posts/bm25_search) for detailed setup instructions and examples.
 
-1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content utilizing natural language processing. Read more about semantic search in [Semantic search with Torus guide](/guides/semantic_search.md).
+1. **Semantic Search**: Understands the contextual meaning of queries to match and retrieve related content utilizing natural language processing. Read more about semantic search in [Semantic search with Torus guide](guides/semantic_search.md).
 
    ```elixir
    insert_post!(title: "Hogwarts Shocker", body: "A spell disrupts the Quidditch Cup.")
@@ -148,7 +148,7 @@ See [`full_text/5`](https://hexdocs.pm/torus/Torus.html#full_text/5) for more de
 
    Use it when no single search type is good enough - typically combining keyword search (`full_text` or `bm25`) with `semantic` search for RAG and retrieval pipelines.
 
-   See [`hybrid/4`](https://hexdocs.pm/torus/Torus.html#hybrid/4) and the [Hybrid search guide](/guides/hybrid_search.md) for more details.
+   See [`hybrid/4`](https://hexdocs.pm/torus/Torus.html#hybrid/4) and the [Hybrid search guide](guides/hybrid_search.md) for more details.
 
 1. **3rd Party Engines/Providers**: Utilizes external services or software specifically designed for optimized and scalable search capabilities, such as Elasticsearch or Algolia.
 
@@ -156,7 +156,7 @@ You can see all of the above search types in action on the [live demo page](http
 
 ## Highlighting matches
 
-Searches can highlight their matches in the results - pass `highlight: [key: column]` to `full_text`, `bm25`, `similarity`, `ilike`, or `like`, and the search's own term and options are reused:
+Searches can highlight their matches in the results - pass `highlight: [key: column]` to `full_text`, `bm25`, `similarity`, `ilike`, `like`, or a `hybrid` branch's options, and the search's own term and options are reused:
 
 ```elixir
 Post
@@ -165,7 +165,7 @@ Post
 [%Post{title: "Hogwarts <b>Shocker</b>", ...}]
 ```
 
-For full control (custom terms, snippets, `hybrid` queries), use [`highlight/3`](https://hexdocs.pm/torus/Torus.html#highlight/3) directly in `select`/`select_merge`:
+For full control (custom terms, snippets), use [`highlight/3`](https://hexdocs.pm/torus/Torus.html#highlight/3) directly in `select`/`select_merge`:
 
 ```elixir
 Post

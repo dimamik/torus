@@ -95,6 +95,34 @@ defmodule Torus.HybridTest do
       assert_in_delta third, rrf(3), 1.0e-12
     end
 
+    test "an empty similarity term contributes no rows to the fusion" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          similarity: {[p.title], ""},
+          full_text: {[p.title, p.body], "wand"}
+        )
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
+        |> Repo.all()
+
+      # Only the full_text branch contributes - the empty similarity term would
+      # otherwise rank every row with a constant 0 similarity
+      assert [{"hogwarts wand", first}] = results
+      assert_in_delta first, rrf(1), 1.0e-12
+    end
+
+    test "empty_return: true lets an empty full_text term contribute all rows" do
+      results =
+        Post
+        |> Torus.hybrid([p],
+          full_text: {[p.title, p.body], "", filter_type: :none, empty_return: true}
+        )
+        |> select([p, torus_hybrid: fused], {p.title, fused.score})
+        |> Repo.all()
+
+      assert length(results) == 3
+    end
+
     test "full_text branch supports filter_type: :concat" do
       results =
         Post
@@ -113,6 +141,8 @@ defmodule Torus.HybridTest do
 
       assert sql =~ "row_number()"
       assert sql =~ ~s|<@> 'search'|
+      # An empty term must contribute no rows to the fusion
+      assert sql =~ ~s|trim('search') <> ''|
     end
 
     test "semantic branch pre_filter excludes distant rows" do
@@ -281,6 +311,19 @@ defmodule Torus.HybridTest do
       assert ["hogwarts" | _rest] = results
     end
 
+    test "ranks rows with NULL search columns last" do
+      insert_post!(title: nil, body: "no title at all")
+      insert_post!(title: "hogwarts wand")
+
+      results =
+        Post
+        |> Torus.hybrid([p], similarity: {[p.title], "hogwarts"})
+        |> select([p], p.title)
+        |> Repo.all()
+
+      assert ["hogwarts wand", nil] = results
+    end
+
     test "ties within a branch rank deterministically by primary key" do
       posts = for _index <- 1..3, do: insert_post!(title: "same title")
 
@@ -398,6 +441,8 @@ defmodule Torus.HybridTest do
       for {options, message} <- [
             {~s|[k: "sixty"]|, ~r/`k` option must be a positive number/},
             {"[k: 0]", ~r/`k` option must be a positive number/},
+            {"[limit: 0]", ~r/`limit` option must be a positive integer/},
+            {~s|[limit: "5"]|, ~r/`limit` option must be a positive integer/},
             {"[score_key: nil]", ~r/`score_key` option must be a non-nil atom/}
           ] do
         code = """

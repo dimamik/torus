@@ -27,4 +27,9 @@ defmodule Torus.Semantic.Embeddings.NebulexCacheTest do
     assert [%Pgvector{}] = NebulexCache.generate(["hello"], opts)
     refute_received {:generated, ["hello"]}
   end
+
+  test "passes options through to the wrapped embedder's embedding_model/1" do
+    assert "tests/counting-model" =
+             NebulexCache.embedding_model(embedding_module: CountingEmbedder)
+  end
 end

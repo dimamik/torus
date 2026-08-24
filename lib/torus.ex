@@ -211,7 +211,7 @@ defmodule Torus do
     * `:order` - describes the ordering of the results. Possible values are
       - `:desc` (default) - orders the results by similarity rank in descending order.
       - `:asc` - orders the results by similarity rank in ascending order.
-      - `:none` - doesn't apply ordering and returns
+      - `:none` - doesn't apply ordering at all.
     * `:pre_filter` - whether or not to pre-filter the results:
       - `false` (default) - omits pre-filtering and returns all results.
       - `true` -  before applying the order, pre filters (using boolean
@@ -314,18 +314,20 @@ defmodule Torus do
       - `:ts_rank_cd` (default) - computes a score showing how well the vector matches
       the query, using a cover density algorithm. See [Ranking Search Results](https://postgresql.org/docs/current/interactive/textsearch-controls.html#TEXTSEARCH-RANKING) for more details.
       - `:ts_rank` - computes a score showing how well the vector matches the query.
-    * `:rank_weights` - a list of weights for each column. Defaults to `[:A, :B, :C, :D]`.
-    The length of weights (if provided) should be the same as the length of the columns we search for.
+    * `:rank_weights` - a list of weights for each column. Defaults to
+    `[:A, :B, :C, :D]`, padded with `:D` when there are more than four columns.
+    If provided, it should have at least as many weights as there are columns.
     A single weight can be either a string or an atom. Possible values are:
       - `:A` - 1.0
       - `:B` - 0.4
       - `:C` - 0.2
       - `:D` - 0.1
-    * `:rank_normalization` - a string that specifies whether and how a document's
+    * `:rank_normalization` - an integer that specifies whether and how a document's
     length should impact its rank. The integer option controls several behaviors, so
     it is a bit mask: you can specify one or more behaviors using `|` (for example, `2|4`).
-      - `0` (default for `ts_rank`) - ignores the document length
-      - `1`  - divides the rank by 1 + the logarithm of the document length
+      - `0` - ignores the document length
+      - `1` (default for `ts_rank`) - divides the rank by 1 + the logarithm of the
+      document length
       - `2`  - divides the rank by the document length
       - `4` (default for `ts_rank_cd`)  - divides the rank by the mean harmonic
       distance between extents (this is implemented only by `ts_rank_cd`)
@@ -343,17 +345,17 @@ defmodule Torus do
       - `:concat` - joins the columns into a single tsvector and searches for the
       term in the concatenated string containing all columns.
       - `:none` - doesn't apply any filtering and returns all results.
-    * `empty_return` - whether to return all results when the search term is empty.
+    * `:empty_return` - whether to return all results when the search term is empty.
       - `true` (default) - returns all results when the search term is empty.
       - `false` - returns an empty list when the search term is empty.
     * `:highlight` - a keyword list of result keys to columns to highlight the
     term's matches in, e.g. `highlight: [title: p.title]`. See `highlight/3`.
-    * `:coalesce` - when joining columns via `:concat` option, adds a
-    `COALESCE` function to handle NULL values. Choose true when you can't guarantee
-    that all columns are non-null.
-      - `true` (default)- adds `COALESCE`
-      - `false` - doesn't add `COALESCE` function to the query. Choose this when you're
-      using `filter_type: :concat` and can guarantee that all columns are non-null.
+    * `:coalesce` - when joining multiple columns via `filter_type: :concat`, wraps
+    each column in a `COALESCE` function to handle NULL values. Only applies with
+    `filter_type: :concat` and more than one column - it is ignored otherwise.
+      - `true` (default) - adds `COALESCE`
+      - `false` - doesn't add `COALESCE` to the query. Choose this when you can
+      guarantee that all columns are non-null.
 
   ## Example usage
 
@@ -413,7 +415,11 @@ defmodule Torus do
   `full_text/5`, `bm25/5`, `similarity/5`, `ilike/5`, `like/5`, or a `hybrid/4`
   branch's options - the search's own term and options are reused. `ilike/5`/`like/5` highlight as substrings with the
   macro's case sensitivity, stripping `%`/`_` wildcards from the term; the rest
-  highlight word matches. The highlighted value is merged via `select_merge/3`, so
+  highlight word matches. Only leading/trailing wildcards translate cleanly: a
+  wildcard in the middle of the term (or an escaped `\\%`) is stripped too, so the
+  remaining substring may no longer occur in the text and nothing gets highlighted -
+  for such patterns call `highlight/3` yourself with the substring you want marked.
+  The highlighted value is merged via `select_merge/3`, so
   either use a key that exists on the selected struct (its value is replaced with
   the highlighted text) or select a map before the search macro.
 
@@ -660,8 +666,8 @@ defmodule Torus do
     branch's term matches in, e.g. `highlight: [title: p.title]`. Not supported in
     `:semantic` branches. See `highlight/3`.
 
-  In `full_text` branches `empty_return` defaults to `false`, so an empty search term
-  contributes no rows to the fusion instead of boosting arbitrary ones.
+  An empty search term contributes no rows to the fusion: `full_text` branches default `empty_return` to `false`, and
+  `similarity`/`bm25` branches filter empty terms out.
 
   ## Options
 
@@ -792,7 +798,7 @@ defmodule Torus do
       - `:hamming_distance` - (binary vectors only) Hamming distance
       - `:jaccard_distance` - (binary vectors only) Jaccard distance
     * `:order` - describes the ordering of the results. Possible values are
-      - `:asc` (default) - orders the results by distance in ascending order. 0 distance means that the vectors are the same meaning the the terms are equal. The closer the vectors - more aligned are the terms.
+      - `:asc` (default) - orders the results by distance in ascending order. 0 distance means that the vectors are the same, meaning the terms are equal. The closer the vectors - the more aligned are the terms.
       - `:desc` - orders the results by distance in descending order.
       - `:none` - doesn't apply ordering at all.
     * `:pre_filter` - a positive float that is passed directly to the query to pre-filter the results.

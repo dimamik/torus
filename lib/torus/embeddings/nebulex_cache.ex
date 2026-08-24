@@ -20,11 +20,9 @@ if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded?(Decorator.Decorate) and
       config :torus, embedding_module: Torus.Embeddings.NebulexCache
       config :torus, Torus.Embeddings.NebulexCache,
         embedding_module: Torus.Embeddings.PostgresML,
-        cache: Nebulex.Cache,
-        otp_name: :your_app,
         adapter: Nebulex.Adapters.Local,
         # Other adapter-specific options
-        allocated_memory: 1_000_000_000, # 1GB
+        allocated_memory: 1_000_000_000 # 1GB
 
       # Embedding module specific options
       config :torus, Torus.Embeddings.PostgresML, repo: TorusExample.Repo
@@ -85,7 +83,7 @@ if Code.ensure_loaded?(Nebulex) and Code.ensure_loaded?(Decorator.Decorate) and
 
     @impl true
     def embedding_model(opts) do
-      get_option!(opts, __MODULE__, :embedding_module).embedding_model
+      get_option!(opts, __MODULE__, :embedding_module).embedding_model(opts)
     end
 
     @impl true

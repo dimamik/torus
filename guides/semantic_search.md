@@ -271,8 +271,6 @@ To use it:
   config :torus, embedding_module: Torus.Embeddings.NebulexCache
   config :torus, Torus.Embeddings.NebulexCache,
     embedding_module: Torus.Embeddings.PostgresML,
-    cache: Nebulex.Cache,
-    otp_name: :your_app,
     adapter: Nebulex.Adapters.Local,
     # Other adapter‑specific options
     allocated_memory: 1_000_000_000 # 1 GB
